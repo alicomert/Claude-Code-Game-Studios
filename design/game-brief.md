@@ -33,7 +33,8 @@ Her blok kendi içinde çalıştırılır; ilk bloğun bitmesi Faz 1'in bitmesi 
 
 - `project.godot` açılarak F6 değil **F5** ile laboratuvar çalıştırılabilir; çalışırken F5 sıfırlar.
 - WASD kameraya göre hareket eder; çapraz hareket hız kazandırmaz. Fare bakışı hareketten bağımsızdır.
-- Shift yavaşlatır; Space süre/bekleme sınırlı atılır; duvarların içinden geçmez.
+- Shift yavaşlatır; Space süre/bekleme sınırlı atılır; V yerdeyken yaklaşık 1 m zıplatır. Havada tekrar/tuş basılı otomatik zıplama yoktur; atılma sırasında zıplama başlamaz; duvarların içinden geçilmez.
+- Fareye dönüş katsayısı kullanıcı kararıyla22'den13,2'ye düşürüldü (%40); kamera kayması ve yürüyüş hızı değişmedi. Kalkış/uçuş/iniş için collider'dan ayrı prosedürel animasyon kullanılır; kamera zemin referansını izler. Taslak ve formüller: [zıplama spec](quick-specs/turn-response-jump-2026-10-22.md).
 - Kamera yaklaşık 55° eğimlidir. Kenara yaklaşan fare sınırlı kaydırma yapar; C basılıyken merkezlenir.
 - Esc duraklatır; F5 konum, hız, atılma ve kamerayı sıfırlar.
 - Ayarlar `assets/data/movement_default.tres` içindedir; değişiklik için kod düzenlemek gerekmez.

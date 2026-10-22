@@ -6,6 +6,8 @@ const TuningScript = preload("res://src/data/movement_tuning.gd")
 
 @export var target: Node3D
 @export var tuning: TuningScript
+## Optional ground reference: follow X/Z without bobbing with the airborne body.
+@export var height_anchor: Node3D
 
 var _input_focused: bool = true
 
@@ -31,7 +33,7 @@ func _process(delta: float) -> void:
 	if right.is_zero_approx():
 		right = Vector3.RIGHT
 	var back: Vector3 = right.cross(Vector3.UP).normalized()
-	var desired: Vector3 = target.global_position + _camera_offset() + right * edge.x + back * edge.y
+	var desired: Vector3 = follow_point() + _camera_offset() + right * edge.x + back * edge.y
 	global_position = smooth_follow(global_position, desired,
 		tuning.camera_follow_sharpness, delta)
 	# Keep the inclination fixed while following/panning; mouse movement translates
@@ -52,8 +54,8 @@ func snap_to_target() -> void:
 	if tuning == null or not is_instance_valid(target) or not is_inside_tree():
 		return
 	fov = clampf(tuning.camera_fov, 1.0, 179.0)
-	global_position = target.global_position + _camera_offset()
-	look_at(target.global_position, Vector3.UP)
+	global_position = follow_point() + _camera_offset()
+	look_at(follow_point(), Vector3.UP)
 	reset_physics_interpolation()
 
 
@@ -73,6 +75,16 @@ func screen_edge_offset(mouse: Vector2, size: Vector2) -> Vector2:
 static func smooth_follow(current: Vector3, desired: Vector3, sharpness: float, delta: float) -> Vector3:
 	var weight: float = 1.0 - exp(-maxf(sharpness, 0.0) * maxf(delta, 0.0))
 	return current.lerp(desired, weight)
+
+
+## Resolve target X/Z and optional grounded Y; usable outside a scene for tests.
+func follow_point() -> Vector3:
+	if not is_instance_valid(target):
+		return Vector3.ZERO
+	var point := target.global_position if target.is_inside_tree() else target.position
+	if is_instance_valid(height_anchor):
+		point.y = height_anchor.global_position.y if height_anchor.is_inside_tree() else height_anchor.position.y
+	return point
 
 
 func _camera_offset() -> Vector3:
