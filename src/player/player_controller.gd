@@ -1,10 +1,15 @@
 class_name PlayerController
 extends CharacterBody3D
-## Camera-relative locomotion, cursor-plane aiming, and a collision-respecting dash.
+## Camera-relative locomotion, cursor-plane aiming, jump, and collision-respecting dash.
 ## The lab owns visuals/collision children and injects camera and tuning references.
 
 const TuningScript = preload("res://src/data/movement_tuning.gd")
 const GEOMETRY_EPSILON: float = 0.000001
+
+## Emitted once at accepted physical takeoff, before move_and_slide.
+signal jumped()
+## Emitted once after an observed airborne-to-floor transition; speed is positive.
+signal landed(impact_speed: float)
 
 @export var tuning: TuningScript
 @export var camera: Camera3D
@@ -15,12 +20,21 @@ var dash_remaining: float = 0.0
 var dash_cooldown_remaining: float = 0.0
 ## True only while moving slowly outside a dash.
 var is_slow_walking: bool = false
+## Last grounded world height (body origin); held at takeoff while airborne.
+var ground_anchor_y: float = 0.0
+## Collision-derived airborne state; reset invalidates stale floor contact until a step.
+var is_airborne: bool:
+	get:
+		return _floor_contact_invalidated or not is_on_floor()
 
 var _aim_direction: Vector3 = Vector3.FORWARD
 var _dash_direction: Vector3 = Vector3.FORWARD
 var _motion_velocity: Vector3 = Vector3.ZERO
 var _dash_step_applied: bool = false
 var _input_focused: bool = true
+var _floor_contact_invalidated: bool = true
+var _was_airborne: bool = false
+var _jump_input_held: bool = false
 
 
 func _ready() -> void:
@@ -29,6 +43,7 @@ func _ready() -> void:
 		set_physics_process(false)
 		return
 	_input_focused = get_window().has_focus()
+	ground_anchor_y = global_position.y
 
 
 func _physics_process(delta: float) -> void:
@@ -38,19 +53,30 @@ func _physics_process(delta: float) -> void:
 	var input_axis: Vector2 = Vector2.ZERO
 	var slow: bool = false
 	var wants_dash: bool = false
+	var wants_jump: bool = false
 	if accepts_input:
 		input_axis = Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back")
 		slow = Input.is_action_pressed(&"slow_walk")
 		wants_dash = Input.is_action_just_pressed(&"dash")
+		wants_jump = Input.is_action_pressed(&"jump")
 		_update_aim(delta)
 	else:
 		_cancel_horizontal_motion()
+	var grounded_before_step: bool = not _floor_contact_invalidated and is_on_floor()
+	if grounded_before_step:
+		ground_anchor_y = global_position.y
 	simulate_motion(input_axis, slow, wants_dash, delta)
-	if is_on_floor() and velocity.y < 0.0:
-		velocity.y = 0.0
-	else:
-		velocity.y -= maxf(tuning.gravity, 0.0) * delta
+	if simulate_vertical_motion(wants_jump, grounded_before_step, delta):
+		jumped.emit()
+	var impact_speed: float = maxf(-velocity.y, 0.0)
 	move_and_slide()
+	_floor_contact_invalidated = false
+	var grounded_after_step: bool = is_on_floor()
+	if grounded_after_step:
+		ground_anchor_y = global_position.y
+		if _was_airborne:
+			landed.emit(impact_speed)
+	_was_airborne = not grounded_after_step
 	# Preserve collision resolution for ordinary movement instead of accelerating
 	# an invisible, blocked velocity behind the wall. Do not retain a duration-
 	# weighted dash velocity as the ordinary velocity on a dash-expiry frame.
@@ -74,6 +100,10 @@ func reset_to(point: Vector3) -> void:
 	else:
 		position = point
 	velocity = Vector3.ZERO
+	ground_anchor_y = point.y
+	_floor_contact_invalidated = true
+	_was_airborne = false
+	_jump_input_held = false
 	_motion_velocity = Vector3.ZERO
 	_dash_step_applied = false
 	dash_remaining = 0.0
@@ -129,6 +159,35 @@ func simulate_motion(input_axis: Vector2, slow: bool, wants_dash: bool, delta: f
 	is_slow_walking = slow and not direction.is_zero_approx() and dash_step <= 0.0
 
 
+## Update only vertical velocity without input, scene queries, movement, or signals.
+## Pass jump-button state; only its rising edge can jump. Ground contact is injected.
+## Call simulate_motion first so any dash-active portion of this step wins over jump.
+## Returns whether takeoff was accepted; nonpositive delta leaves all state unchanged.
+func simulate_vertical_motion(wants_jump: bool, grounded: bool, delta: float) -> bool:
+	if tuning == null or delta <= 0.0:
+		return false
+	var rising_edge: bool = wants_jump and not _jump_input_held
+	_jump_input_held = wants_jump
+	if rising_edge and grounded and dash_remaining <= 0.0 and not _dash_step_applied:
+		if tuning.jump_height > 0.0 and tuning.gravity > 0.0:
+			velocity.y = sqrt(2.0 * tuning.gravity * tuning.jump_height)
+			return true
+	# Keep contact with the floor on idle frames. Zero displacement can make
+	# move_and_slide lose its floor flag and reject a valid jump on alternating ticks.
+	if grounded:
+		velocity.y = -maxf(tuning.gravity, 0.0) * delta
+	else:
+		velocity.y -= maxf(tuning.gravity, 0.0) * delta
+	return false
+
+
+## Exponential shortest-path yaw response; sharpness is a coefficient, not a speed cap.
+## Nonpositive sharpness or delta preserves the current angle.
+static func smooth_yaw(current: float, desired: float, sharpness: float, delta: float) -> float:
+	var weight: float = 1.0 - exp(-maxf(sharpness, 0.0) * maxf(delta, 0.0))
+	return lerp_angle(current, desired, weight)
+
+
 ## Convert a clamped input axis to a horizontal camera-relative direction.
 ## Preserves analog magnitude and supplies a stable basis for a vertical camera.
 static func horizontal_input_direction(input_axis: Vector2, camera_basis: Basis = Basis.IDENTITY) -> Vector3:
@@ -166,9 +225,8 @@ func _update_aim(delta: float) -> void:
 	if not direction.is_zero_approx():
 		_aim_direction = direction
 	var desired_yaw: float = atan2(-_aim_direction.x, -_aim_direction.z)
-	var weight: float = 1.0 - exp(-maxf(tuning.turn_sharpness, 0.0) * maxf(delta, 0.0))
 	var facing: Vector3 = global_rotation
-	facing.y = lerp_angle(facing.y, desired_yaw, weight)
+	facing.y = smooth_yaw(facing.y, desired_yaw, tuning.turn_sharpness, delta)
 	global_rotation = facing
 
 

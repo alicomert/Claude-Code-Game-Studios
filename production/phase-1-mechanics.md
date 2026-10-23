@@ -4,9 +4,9 @@
 
 ## Güncel teslim
 
-**P1-01:** hareket ve kamera temeli kodlandı; **Doğrulama bekliyor**, kapatılmadı. Ana projede Godot 4.7.2 içe aktarması hata vermedi. Bağımlılıksız birim çalıştırıcısı **67 kontrol, 0 hata**, çıkış 0 verdi. İlk eksik bağımlılık koşusu beklendiği gibi parse hatası verdi. F5/Shift/Space enum değerleri gerçek motorda doğrulandı; yapılandırmadaki F5 değeri 4194336 olarak düzeltildi.
+**P1-01 (2026-10-23):** yarım kalan zıplama entegrasyonu tamamlandı; `jumped`/`landed` sinyalleri, düşey simülasyon ve animasyon ayarları ana projede mevcut. Dönüş katsayısı13,2; zıplama yüksekliği1 m. Hata öncesi test81 kontrolde12 hata verdi (eksik sinyaller dahil); entegrasyon sonrası **124 kontrol,0 hata**. Gerçek sahnede keşfedilen alternatif karelerde yer teması kaybı için yeni regresyon önce başarısız oldu; yerde küçük yerçekimi adımı korunarak düzeltildi ve124 kontrol yeniden geçti. Godot4.7.2 import temiz.
 
-**Run result: NOT ASSESSED —** pencereli `--verify-lab --capture-evidence ...` çalıştırma çağrıları aracın güvenlik sınıflandırıcısındaki zaman aşımı nedeniyle yürütülemedi. Gerçek sahnedeki hareket/duvar/sıfırlama kontrolleri ve görsel kanıt **yok**; import ve birim testleri bu boşluğu kapatmaz. Ekran görüntüsü üretildiği iddia edilmez. Fiziksel tuşların gerçek pencereye ulaşması, duraklatma, fare bakışı ve kamera davranışı da çalıştırılıp gözlemlenmeyi bekliyor.
+**Run result: PARTIAL —** gerçek pencereli ana sahne NVIDIA/Vulkan Forward+ ile açıldı, `jumped` erişim hatası tekrar oluşmadı ve `production/qa/evidence/p1-01-jump/repaired-scene.png` kaydedildi. Görsel okuma aracı görüntüyü bu oturumda görünür olarak sunmadığından görsel onay iddia edilmez. İlk `--verify-jump` koşusu12 kontrolde5 hata verdi; yer teması düzeltmesi sonrası tekrar koşuları pencere odağı kesildiği için **NOT ASSESSED (çıkış2)** oldu. Havada/inişte eski görüntüler başarısız koşudan kalmıştır, geçerli zıplama kanıtı değildir. Gerçek tuş etkileşimi, engel aşma ve animasyonun görsel doğrulaması bekliyor; otomatik testte odak koruması devre dışı bırakılmadı.
 
 Hissiyat **kullanıcı onayı bekliyor**. Diğer blokların tamamı **Planlandı**. `git diff --check` geçti. Commit/push yapılmadı.
 

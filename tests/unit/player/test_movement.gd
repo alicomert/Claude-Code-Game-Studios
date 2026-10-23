@@ -402,7 +402,8 @@ func _test_airborne_jump_is_rejected_and_gravity_applies() -> void:
 		"Gravity continues while airborne jump is rejected")
 	player.velocity.y = -player.tuning.gravity
 	_vertical(player, false, true, step)
-	_expect_float(player.velocity.y, 0.0, "Grounded falling velocity is cleared")
+	_expect_float(player.velocity.y, -player.tuning.gravity * step,
+		"Grounded contact retains a small downward step instead of alternating airborne")
 	player.free()
 
 

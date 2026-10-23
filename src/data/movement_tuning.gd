@@ -9,7 +9,21 @@ extends Resource
 @export_range(0.0, 100.0, 0.1) var deceleration: float = 40.0
 @export_range(0.0, 1.0, 0.01) var walk_multiplier: float = 0.4
 @export_range(0.0, 100.0, 0.1) var gravity: float = 24.0
-@export_range(0.0, 100.0, 0.1) var turn_sharpness: float = 22.0
+@export_range(0.0, 100.0, 0.1) var turn_sharpness: float = 13.2
+
+@export_group("Jump")
+## Desired ballistic apex above takeoff; nonpositive height/gravity disables jumping.
+@export_range(0.0, 5.0, 0.05) var jump_height: float = 1.0
+
+@export_group("Jump Animation")
+## Visual-only controls; they never delay or modify physical takeoff or collision.
+@export_range(0.0, 1.0, 0.01) var jump_takeoff_duration: float = 0.10
+@export_range(0.0, 1.0, 0.01) var jump_landing_duration: float = 0.16
+@export_range(0.0, 0.5, 0.01) var jump_stretch: float = 0.16
+@export_range(0.0, 0.5, 0.01) var jump_squash: float = 0.18
+@export_range(0.0, 100.0, 0.1) var jump_pose_sharpness: float = 16.0
+## Zero disables jump poses without changing physics; one applies the full pose.
+@export_range(0.0, 1.0, 0.01) var jump_animation_strength: float = 1.0
 
 @export_group("Dash")
 @export_range(0.0, 60.0, 0.1) var dash_speed: float = 15.0

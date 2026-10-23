@@ -24,6 +24,8 @@ var _verification_start := Vector3.ZERO
 var _verification_failures := 0
 var _verification_checks := 0
 var _verify_jump := false
+var _verification_frame := 0
+var _focus_wait_frames := 0
 var _visual_root: Node3D
 var _height_anchor: Node3D
 var _ground_ring: MeshInstance3D
@@ -47,6 +49,8 @@ func _ready() -> void:
 			_capture_path = arguments[index + 1]
 	_verification = arguments.has("--verify-lab")
 	_verify_jump = arguments.has("--verify-jump")
+	if _verification or _verify_jump:
+		get_window().grab_focus()
 	print("SECTOR9 LAB | WASD / Shift / Space dash / V jump / C / F5 / Esc")
 
 
@@ -79,13 +83,21 @@ func _process(delta: float) -> void:
 
 func _physics_process(_delta: float) -> void:
 	_height_anchor.global_position = Vector3(_player.global_position.x, _player.ground_anchor_y, _player.global_position.z)
+	if _verification or _verify_jump:
+		if not get_window().has_focus():
+			_focus_wait_frames += 1
+			if _verification_frame > 0 or _focus_wait_frames > 300:
+				push_error("NOT ASSESSED: visible integration requires uninterrupted window focus")
+				get_tree().quit(2)
+			return
+		_verification_frame += 1
 	if _verify_jump:
 		_verify_jump_sequence()
 		return
 	if not _verification:
 		return
 	# Explicit opt-in integration rehearsal drives the same actions as a keyboard.
-	match Engine.get_physics_frames():
+	match _verification_frame:
 		10:
 			_verification_start = _player.position
 			Input.action_press(&"move_right")
@@ -299,7 +311,7 @@ func _animate_jump(delta: float) -> void:
 
 
 func _verify_jump_sequence() -> void:
-	var frame := Engine.get_physics_frames()
+	var frame := _verification_frame
 	_peak_height = maxf(_peak_height, _player.position.y - _jump_start_y)
 	match frame:
 		15:
