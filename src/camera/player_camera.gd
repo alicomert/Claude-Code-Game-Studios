@@ -9,15 +9,11 @@ const TuningScript = preload("res://src/data/movement_tuning.gd")
 ## Optional ground reference: follow X/Z without bobbing with the airborne body.
 @export var height_anchor: Node3D
 
-var _input_focused: bool = true
-
-
 func _ready() -> void:
 	if tuning == null:
 		push_error("PlayerCamera requires an injected MovementTuning resource.")
 		set_process(false)
 		return
-	_input_focused = get_window().has_focus()
 	snap_to_target()
 
 
@@ -26,7 +22,7 @@ func _process(delta: float) -> void:
 		return
 	fov = clampf(tuning.camera_fov, 1.0, 179.0)
 	var edge: Vector2 = Vector2.ZERO
-	if _input_focused and get_window().has_focus() and not Input.is_action_pressed(&"camera_center"):
+	if get_window().has_focus() and not Input.is_action_pressed(&"camera_center"):
 		edge = screen_edge_offset(get_viewport().get_mouse_position(),
 			get_viewport().get_visible_rect().size)
 	var right: Vector3 = Vector3(global_basis.x.x, 0.0, global_basis.x.z).normalized()
@@ -39,13 +35,6 @@ func _process(delta: float) -> void:
 	# Keep the inclination fixed while following/panning; mouse movement translates
 	# the camera rather than orbiting or rotating the movement coordinate system.
 	look_at(global_position - _camera_offset(), Vector3.UP)
-
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		_input_focused = false
-	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
-		_input_focused = true
 
 
 ## Place the camera immediately over its target, clearing any accumulated edge pan.

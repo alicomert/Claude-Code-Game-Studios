@@ -11,19 +11,13 @@ var _failure_count: int = 0
 
 
 func _initialize() -> void:
-	_test_lab_physical_keycodes_match_engine_enums()
 	_test_diagonal_input_has_unit_length()
 	_test_camera_relative_input_uses_ground_basis()
 	_test_acceleration_and_deceleration_are_bounded()
 	_test_slow_walk_uses_tuning_multiplier()
-	_test_dash_uses_aim_when_idle_and_stays_locked()
-	_test_dash_duration_and_cooldown_are_bounded()
-	_test_large_step_does_not_extend_dash()
-	_test_zero_duration_dash_is_disabled()
 	_test_zero_delta_does_not_change_state()
 	_test_reset_clears_motion_and_restores_facing()
-	_test_focus_loss_cancels_dash_and_horizontal_motion()
-	_test_partial_dash_retains_normal_speed_for_next_step()
+	_test_focus_loss_cancels_horizontal_motion()
 	_test_ray_aim_uses_player_height_and_handles_parallel_rays()
 	_test_pan_center_and_inner_region_are_neutral()
 	_test_pan_edges_and_corners_are_bounded()
@@ -40,8 +34,7 @@ func _initialize() -> void:
 		_test_grounded_jump_uses_height_formula_and_preserves_horizontal_velocity()
 		_test_airborne_jump_is_rejected_and_gravity_applies()
 		_test_held_jump_does_not_auto_hop_or_buffer()
-		_test_dash_wins_simultaneous_jump_even_on_expiry()
-		_test_air_movement_and_dash_preserve_vertical_velocity()
+		_test_air_movement_preserves_vertical_velocity()
 		_test_disabled_jump_values_and_nonpositive_delta_are_safe()
 		_test_reset_clears_vertical_state_and_sets_anchor()
 	if contract_probe.has_method(&"smooth_yaw"):
@@ -86,14 +79,6 @@ func _expect_vector(actual: Vector3, expected: Vector3, description: String) -> 
 	_expect(actual.distance_to(expected) <= EPSILON, description)
 
 
-func _test_lab_physical_keycodes_match_engine_enums() -> void:
-	# Boundary fixture: exact serialized keycodes in the parent-owned InputMap.
-	_expect(KEY_F5 == 4194336, "F5 physical keycode is 4194336")
-	_expect(KEY_SHIFT == 4194325, "Shift physical keycode is 4194325")
-	_expect(KEY_SPACE == 32, "Space physical keycode is 32")
-	_expect(KEY_V == 86, "V physical keycode is 86")
-
-
 func _test_diagonal_input_has_unit_length() -> void:
 	var direction: Vector3 = PlayerScript.horizontal_input_direction(Vector2(1.0, -1.0))
 	_expect_float(direction.length(), 1.0, "Diagonal movement is normalized")
@@ -117,7 +102,7 @@ func _test_camera_relative_input_uses_ground_basis() -> void:
 	var camera: CameraScript = _make_camera()
 	camera.rotation.y = PI / 2.0
 	player.camera = camera
-	player.simulate_motion(Vector2.UP, false, false,
+	player.simulate_motion(Vector2.UP, false,
 		player.tuning.move_speed / player.tuning.acceleration)
 	_expect_vector(player.velocity, Vector3.LEFT * player.tuning.move_speed,
 		"Injected camera is used by simulation outside the scene tree")
@@ -128,145 +113,67 @@ func _test_camera_relative_input_uses_ground_basis() -> void:
 func _test_acceleration_and_deceleration_are_bounded() -> void:
 	var player: PlayerScript = _make_player()
 	var step: float = player.tuning.move_speed / player.tuning.acceleration / 2.0
-	player.simulate_motion(Vector2.RIGHT, false, false, step)
+	player.simulate_motion(Vector2.RIGHT, false, step)
 	_expect_float(player.velocity.x, player.tuning.move_speed / 2.0,
 		"Velocity ramps up using acceleration")
-	player.simulate_motion(Vector2.RIGHT, false, false, step * 4.0)
+	player.simulate_motion(Vector2.RIGHT, false, step * 4.0)
 	_expect_float(player.velocity.x, player.tuning.move_speed, "Speed never overshoots")
 	step = player.tuning.move_speed / player.tuning.deceleration / 2.0
-	player.simulate_motion(Vector2.ZERO, false, false, step)
+	player.simulate_motion(Vector2.ZERO, false, step)
 	_expect_float(player.velocity.x, player.tuning.move_speed / 2.0,
 		"Released input decelerates")
-	player.simulate_motion(Vector2.ZERO, false, false, step * 4.0)
+	player.simulate_motion(Vector2.ZERO, false, step * 4.0)
 	_expect_vector(player.velocity, Vector3.ZERO, "Deceleration reaches rest without reversal")
 	player.free()
 
 
 func _test_slow_walk_uses_tuning_multiplier() -> void:
 	var player: PlayerScript = _make_player()
-	player.simulate_motion(Vector2.RIGHT, true, false,
+	player.simulate_motion(Vector2.RIGHT, true,
 		player.tuning.move_speed / player.tuning.acceleration)
 	_expect_float(player.velocity.length(),
 		player.tuning.move_speed * player.tuning.walk_multiplier,
 		"Slow walking obeys external tuning")
 	_expect(player.is_slow_walking, "Slow-walk state is exposed")
-	player.simulate_motion(Vector2.ZERO, true, false, player.tuning.dash_cooldown)
+	player.simulate_motion(Vector2.ZERO, true, 1.0)
 	_expect(not player.is_slow_walking, "Idle is not reported as slow walking")
-	player.free()
-
-
-func _test_dash_uses_aim_when_idle_and_stays_locked() -> void:
-	var player: PlayerScript = _make_player()
-	var step: float = player.tuning.dash_duration / 4.0
-	player.simulate_motion(Vector2.ZERO, false, true, step)
-	_expect_vector(player.velocity, Vector3.FORWARD * player.tuning.dash_speed,
-		"Idle dash uses default aim instead of a zero direction")
-	player.simulate_motion(Vector2.RIGHT, true, true, step)
-	_expect_vector(player.velocity, Vector3.FORWARD * player.tuning.dash_speed,
-		"Active dash direction is locked and ignores walk speed")
-	_expect(not player.is_slow_walking, "Dash is not reported as slow walking")
-	player.free()
-
-
-func _test_dash_duration_and_cooldown_are_bounded() -> void:
-	var player: PlayerScript = _make_player()
-	var duration: float = player.tuning.dash_duration
-	var cooldown: float = player.tuning.dash_cooldown
-	player.simulate_motion(Vector2.RIGHT, false, true, duration)
-	_expect_float(player.dash_remaining, 0.0, "Dash expires at its duration")
-	_expect_float(player.dash_cooldown_remaining, cooldown - duration,
-		"Cooldown counts from dash activation")
-	var step: float = duration / 2.0
-	player.simulate_motion(Vector2.LEFT, false, true, step)
-	_expect_float(player.dash_remaining, 0.0, "Cooldown rejects another dash")
-	player.simulate_motion(Vector2.ZERO, false, false, cooldown)
-	_expect_float(player.dash_cooldown_remaining, 0.0, "Cooldown is clamped at zero")
-	player.simulate_motion(Vector2.LEFT, false, true, step)
-	_expect(player.dash_remaining > 0.0, "Dash can activate again after cooldown")
-	_expect_float(player.velocity.x, -player.tuning.dash_speed,
-		"New dash uses the new movement direction")
-	player.free()
-
-
-func _test_large_step_does_not_extend_dash() -> void:
-	var player: PlayerScript = _make_player()
-	var step: float = player.tuning.dash_duration * 2.0
-	player.simulate_motion(Vector2.ZERO, false, true, step)
-	_expect_float(player.dash_remaining, 0.0, "Oversized delta still expires dash")
-	_expect_float(player.velocity.length() * step,
-		player.tuning.dash_speed * player.tuning.dash_duration,
-		"Dash contributes only its remaining duration to displacement")
-	player.simulate_motion(Vector2.ZERO, false, false, step)
-	_expect_vector(player.velocity, Vector3.ZERO, "Dash does not leave excess residual speed")
-	player.free()
-
-
-func _test_zero_duration_dash_is_disabled() -> void:
-	var player: PlayerScript = _make_player()
-	player.tuning.dash_duration = 0.0
-	player.simulate_motion(Vector2.ZERO, false, true, player.tuning.dash_cooldown)
-	_expect_vector(player.velocity, Vector3.ZERO, "Zero-duration dash has no displacement")
-	_expect_float(player.dash_remaining, 0.0, "Disabled dash stays inactive")
 	player.free()
 
 
 func _test_zero_delta_does_not_change_state() -> void:
 	var player: PlayerScript = _make_player()
-	player.simulate_motion(Vector2.RIGHT, false, true, 0.0)
+	player.simulate_motion(Vector2.RIGHT, false, 0.0)
 	_expect_vector(player.velocity, Vector3.ZERO, "Zero delta does not change velocity")
-	_expect_float(player.dash_cooldown_remaining, 0.0, "Zero delta does not consume dash")
-	player.simulate_motion(Vector2.RIGHT, false, true, -1.0)
+	player.simulate_motion(Vector2.RIGHT, false, -1.0)
 	_expect_vector(player.velocity, Vector3.ZERO, "Negative delta is ignored")
 	player.free()
 
 
 func _test_reset_clears_motion_and_restores_facing() -> void:
 	var player: PlayerScript = _make_player()
-	player.simulate_motion(Vector2.RIGHT, true, true, player.tuning.dash_duration / 2.0)
+	player.simulate_motion(Vector2.RIGHT, true, 1.0 / 60.0)
 	player.velocity.y = -player.tuning.gravity
 	player.rotation.y = PI / 2.0
 	var spawn: Vector3 = Vector3(3.0, 0.75, -2.0)
 	player.reset_to(spawn)
 	_expect_vector(player.position, spawn, "Reset places player at the requested point")
 	_expect_vector(player.velocity, Vector3.ZERO, "Reset clears all velocity")
-	_expect_float(player.dash_remaining, 0.0, "Reset clears active dash")
-	_expect_float(player.dash_cooldown_remaining, 0.0, "Reset clears dash cooldown")
 	_expect_float(player.rotation.y, 0.0, "Reset snaps facing to world forward")
 	_expect(not player.is_slow_walking, "Reset clears slow-walk state")
 	player.free()
 
 
-func _test_focus_loss_cancels_dash_and_horizontal_motion() -> void:
+func _test_focus_loss_cancels_horizontal_motion() -> void:
 	var player: PlayerScript = _make_player()
-	player.simulate_motion(Vector2.RIGHT, false, true, player.tuning.dash_duration / 2.0)
+	player.simulate_motion(Vector2.RIGHT, false, 1.0 / 60.0)
 	player.velocity.y = -player.tuning.gravity
-	var cooldown_before: float = player.dash_cooldown_remaining
 	player.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
-	_expect_float(player.dash_remaining, 0.0, "Focus loss cancels an active dash")
 	_expect_float(player.velocity.x, 0.0, "Focus loss stops horizontal motion immediately")
 	_expect_float(player.velocity.y, -player.tuning.gravity,
 		"Focus loss does not cancel gravity")
-	_expect_float(player.dash_cooldown_remaining, cooldown_before,
-		"Focus loss does not refund cooldown")
 	player.notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
-	player.simulate_motion(Vector2.RIGHT, false, true, player.tuning.dash_duration / 2.0)
-	_expect_float(player.dash_remaining, 0.0, "Focus regain does not bypass cooldown")
-	player.free()
-
-
-func _test_partial_dash_retains_normal_speed_for_next_step() -> void:
-	var player: PlayerScript = _make_player()
-	var duration: float = player.tuning.dash_duration
-	player.simulate_motion(Vector2.RIGHT, false, true, duration * 2.0)
-	var normal_speed: float = minf(player.tuning.acceleration * duration,
-		player.tuning.move_speed)
-	_expect_float(player.velocity.x,
-		(player.tuning.dash_speed + normal_speed) / 2.0,
-		"Expiry step blends dash and ordinary motion by duration")
-	player.simulate_motion(Vector2.RIGHT, false, false,
-		player.tuning.move_speed / player.tuning.acceleration)
-	_expect_float(player.velocity.x, player.tuning.move_speed,
-		"Duration-weighted dash velocity does not leak into the next ordinary step")
+	player.simulate_motion(Vector2.RIGHT, false, 1.0 / 60.0)
+	_expect(player.velocity.x > 0.0, "Fresh movement works after focus regain")
 	player.free()
 
 
@@ -425,39 +332,20 @@ func _test_held_jump_does_not_auto_hop_or_buffer() -> void:
 	player.free()
 
 
-func _test_dash_wins_simultaneous_jump_even_on_expiry() -> void:
+func _test_air_movement_preserves_vertical_velocity() -> void:
 	# Arrange
 	var player: PlayerScript = _make_player()
-	var step: float = player.tuning.dash_duration
-	# Act — production order is horizontal/dash before vertical/jump.
-	player.simulate_motion(Vector2.RIGHT, false, true, step)
-	var accepted: bool = _vertical(player, true, true, step)
-	# Assert
-	_expect_float(player.dash_remaining, 0.0, "Fixture spans the entire dash duration")
-	_expect(not accepted, "Dash wins simultaneous jump even when the timer expires this frame")
-	player.simulate_motion(Vector2.ZERO, false, false, step)
-	_expect(not _vertical(player, true, true, step), "Rejected held jump does not fire after dash")
-	_vertical(player, false, true, step)
-	_expect(_vertical(player, true, true, step), "Fresh press after dash may jump during cooldown")
-	player.free()
-
-
-func _test_air_movement_and_dash_preserve_vertical_velocity() -> void:
-	# Arrange
-	var player: PlayerScript = _make_player()
-	var step: float = player.tuning.dash_duration / 2.0
+	var step: float = 1.0 / 60.0
 	_vertical(player, true, true, step)
 	var previous_y: float = player.velocity.y
 	# Act
-	player.simulate_motion(Vector2.RIGHT, false, false, step)
+	player.simulate_motion(Vector2.RIGHT, false, step)
 	# Assert
 	_expect(player.velocity.x > 0.0, "WASD retains air control")
 	_expect_float(player.velocity.y, previous_y, "Air steering preserves vertical velocity")
-	player.simulate_motion(Vector2.UP, false, true, step)
-	_expect_float(player.velocity.y, previous_y, "Midair dash preserves vertical velocity")
-	_expect(not _vertical(player, false, false, step), "Midair dash is not a jump")
+	_expect(not _vertical(player, false, false, step), "Air steering does not trigger another jump")
 	_expect_float(player.velocity.y, previous_y - player.tuning.gravity * step,
-		"Dash never suspends gravity")
+		"Air steering never suspends gravity")
 	player.free()
 
 

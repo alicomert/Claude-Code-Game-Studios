@@ -4,6 +4,15 @@ extends Node3D
 const PlayerScript = preload("res://src/player/player_controller.gd")
 const CameraScript = preload("res://src/camera/player_camera.gd")
 const TuningScript = preload("res://src/data/movement_tuning.gd")
+const CombatPreset = preload("res://assets/data/player_combat_default.tres")
+const CombatScript = preload("res://src/combat/player_combat.gd")
+const PistolScript = preload("res://src/combat/pistol_visual.gd")
+const HudScript = preload("res://src/ui/player_hud.gd")
+const WeaponScript = preload("res://src/combat/weapon_controller.gd")
+const RangeScript = preload("res://src/lab/combat_range.gd")
+const InteractionScript = preload("res://src/interaction/interaction_controller.gd")
+const FeedbackScript = preload("res://src/combat/shot_feedback.gd")
+const LabRules = preload("res://assets/data/lab_rules.tres")
 const SPAWN := Vector3(0.0, 0.75, 5.0)
 const FLOOR_COLOR := Color("172333")
 const LINE_COLOR := Color("304455")
@@ -12,6 +21,19 @@ const ORANGE := Color("ffae73")
 
 @export var tuning: TuningScript
 
+## Per-lab health and ammunition; external damage systems call combat.apply_damage().
+var combat: CombatScript
+var weapon: WeaponScript
+var interaction: InteractionScript
+var combat_range: RangeScript
+var _feedback: FeedbackScript
+var _hazard_wait := 0.0
+var _kick := 0.0
+var _reduced_effects := false
+var _limited_ammo := false
+var _sample_status := ""
+var _pistol: PistolScript
+var _combat_hud: HudScript
 var _player: PlayerScript
 var _camera: CameraScript
 var _status: Label
@@ -42,7 +64,16 @@ func _ready() -> void:
 	_build_environment()
 	_build_arena()
 	_build_player()
+	combat = CombatPreset.duplicate()
+	combat.reset()
+	_pistol = PistolScript.new()
+	_pistol.name = "Pistol"
+	_pistol.tuning = combat
+	_pistol.position = Vector3(0.38, 0.86, -0.48)
+	_visual_root.add_child(_pistol)
+	combat.fired.connect(_pistol.play_shot)
 	_build_hud()
+	_build_combat_range()
 	var arguments := OS.get_cmdline_user_args()
 	for index in range(arguments.size()):
 		if arguments[index] == "--capture-evidence" and index + 1 < arguments.size():
@@ -51,30 +82,33 @@ func _ready() -> void:
 	_verify_jump = arguments.has("--verify-jump")
 	if _verification or _verify_jump:
 		get_window().grab_focus()
-	print("SECTOR9 LAB | WASD / Shift / Space dash / V jump / C / F5 / Esc")
+	print("SECTOR9 LAB | WASD / Shift / Space jump / Left click fire / R reload / C / F5 / Esc")
 
 
 func _process(delta: float) -> void:
 	_frames += 1
 	if not _paused:
 		_animate_jump(delta)
+		combat.advance(delta)
+		weapon.advance(delta)
+		_kick = maxf(_kick - delta, 0.0)
+		_camera.h_offset = sin(_kick * 120.0) * _kick if not _reduced_effects else 0.0
+		_update_lab_commands(delta)
 	if Input.is_action_just_pressed(&"lab_reset"):
 		_reset_lab()
 	if Input.is_action_just_pressed(&"ui_cancel"):
-		_paused = not _paused
-		_player.set_physics_process(not _paused)
-		_camera.set_process(not _paused)
-		_player.velocity = Vector3.ZERO
-		_pause_label.visible = _paused
+		set_paused(not _paused)
+	if Input.is_action_just_pressed(&"reload"):
+		reload_weapon()
+	if Input.is_action_just_pressed(&"fire"):
+		try_fire()
 	var mode_text := tr("BEKLEME")
 	if not _player.is_on_floor():
 		mode_text = tr("YÜKSELİYOR") if _player.velocity.y > 0.0 else tr("İNİYOR")
-	elif _player.dash_remaining > 0.0:
-		mode_text = tr("ATILMA")
 	elif _player.velocity.length() > 0.1:
 		mode_text = tr("SESSİZ YÜRÜYÜŞ") if _player.is_slow_walking else tr("HAREKET")
-	_status.text = tr("%s  •  Atılma bekleme: %.1f sn  •  Konum: %.1f / %.1f") % [
-		mode_text, _player.dash_cooldown_remaining, _player.position.x, _player.position.z]
+	_status.text = tr("%s  •  Konum: %.1f / %.1f") % [
+		mode_text, _player.position.x, _player.position.z]
 	if _player.position.y < -5.0:
 		_reset_lab()
 	if not _capture_path.is_empty() and _frames == 90 and not _verification and not _verify_jump:
@@ -105,11 +139,6 @@ func _physics_process(_delta: float) -> void:
 			_check(_player.position.x > _verification_start.x + 1.0, "right action moves player")
 			Input.action_release(&"move_right")
 			Input.action_press(&"move_forward")
-		80:
-			Input.action_press(&"dash")
-		82:
-			Input.action_release(&"dash")
-			_check(_player.dash_cooldown_remaining > 0.0, "dash input starts cooldown")
 		110:
 			Input.action_release(&"move_forward")
 			_reset_lab()
@@ -139,7 +168,58 @@ func _check(condition: bool, description: String) -> void:
 		push_error("FAIL: " + description)
 
 
+## Accept one shot only while gameplay can receive focused input.
+func try_fire() -> bool:
+	if _paused or not get_window().has_focus():
+		return false
+	var origin: Vector3 = _player.global_position + Vector3.UP * 0.25
+	var mouse: Vector2 = get_viewport().get_mouse_position()
+	var direction: Vector3 = PlayerScript.ray_plane_aim_direction(
+		_camera.project_ray_origin(mouse), _camera.project_ray_normal(mouse), origin)
+	if direction.is_zero_approx():
+		direction = -_player.global_basis.z
+	var accepted: bool = weapon.fire_at(origin, direction, _player.velocity.length() > 0.1)
+	if accepted:
+		_kick = LabRules.camera_kick
+		_feedback.play_tone(weapon.current_profile().tone_hz)
+	return accepted
+
+
+## Refill seven rounds from the lab's unlimited supply while gameplay is active.
+func reload_weapon() -> bool:
+	if _paused or not get_window().has_focus() or combat.health <= 0.0 or combat.stun_remaining > 0.0:
+		return false
+	return combat.reload()
+
+
+## Freeze movement and presentation without deleting airborne velocity.
+func set_paused(value: bool) -> void:
+	_paused = value
+	_player.set_physics_process(not value)
+	_camera.set_process(not value)
+	_pistol.set_paused(value)
+	_combat_hud.set_paused(value)
+	_pause_label.visible = value
+	_feedback.set_paused(value)
+	interaction.cancel()
+	for target in combat_range.targets:
+		target.set_process(not value)
+	_camera.h_offset = 0.0
+
+
 func _reset_lab() -> void:
+	combat.reset()
+	weapon.reset_weapon()
+	interaction.cancel()
+	combat_range.reset_range()
+	_feedback.reset_effects()
+	_hazard_wait = 0.0
+	_kick = 0.0
+	combat.reserve_ammo = LabRules.limited_reserve if _limited_ammo else -1
+	_sample_status = ""
+	_camera.h_offset = 0.0
+	_combat_hud.reset_display()
+	_pistol.reset_visual()
 	_player.reset_to(SPAWN)
 	_height_anchor.position = SPAWN
 	_takeoff_age = -1.0
@@ -203,7 +283,7 @@ func _build_arena() -> void:
 	_box("NarrowRight", Vector3(0.5, 1.2, 4), Vector3(11.3, 0.6, -8), Color("46576d"), true)
 	_box("JumpLow", Vector3(3.5, 0.45, 0.6), Vector3(0, 0.225, -2), Color("356a68"), true)
 	_box("JumpMedium", Vector3(3.5, 0.75, 0.6), Vector3(0, 0.375, -6), Color("476571"), true)
-	_world_label(tr("V / ZIPLA — 45 cm"), Vector3(0, 0.08, -0.8), TEAL)
+	_world_label(tr("SPACE / ZIPLA — 45 cm"), Vector3(0, 0.08, -0.8), TEAL)
 	_world_label(tr("75 cm"), Vector3(0, 0.08, -4.8), TEAL)
 	_world_label(tr("01 / HAREKET"), Vector3(0, 0.08, 8), TEAL)
 	_world_label(tr("02 / SLALOM"), Vector3(-7, 0.08, 1), Color("bdc9d9"))
@@ -406,13 +486,11 @@ func _build_hud() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(root)
-	var heading := _label(tr("SECTOR 9"), 28, TEAL)
-	heading.position = Vector2(28, 20)
-	root.add_child(heading)
-	var subtitle := _label(tr("FAZ 1 / MEKANİK LABORATUVARI\nHareket + kamera + zıplama"), 16, Color("ced8e5"))
-	subtitle.position = Vector2(30, 59)
-	root.add_child(subtitle)
-	var controls := _label(tr("WASD   Hareket\nFARE   Bakış yönü\nSHIFT   Sessiz yürü\nSPACE   Atıl\nV   Zıpla\nC basılı   Kamerayı merkezle\nF5   Alanı sıfırla\nESC   Duraklat / devam"), 17, Color("e3eaf2"))
+	_combat_hud = HudScript.new()
+	_combat_hud.name = "CombatHud"
+	root.add_child(_combat_hud)
+	_combat_hud.bind_state(combat)
+	var controls := _label(tr("WASD   Hareket\nFARE   Bakış yönü\nSOL TIK   Ateş\n1–4   Silah seç\nR   Şarjör değiştir\nE   Etkileşim\nT   Basılı tut / aç-kapa\nF6   Efekt azalt\nF7   Mermi test modu\nSHIFT   Sessiz yürü\nSPACE   Zıpla\nC basılı   Kamerayı merkezle\nF5   Alanı sıfırla\nESC   Duraklat / devam"), 17, Color("e3eaf2"))
 	controls.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	controls.position = Vector2(-290, 24)
 	controls.size = Vector2(260, 205)
@@ -421,7 +499,7 @@ func _build_hud() -> void:
 	_status.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	_status.position = Vector2(30, -62)
 	root.add_child(_status)
-	var disclaimer := _label(tr("Silahlar, roller, düşmanlar ve co-op henüz eklenmedi.  •  Amaç: önce kontrol hissini denemek."), 14, Color("aebed1"))
+	var disclaimer := _label(tr("R: şarjör değiştir • Sınırsız yedek şarjör • F5: laboratuvarı sıfırla."), 14, Color("aebed1"))
 	disclaimer.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	disclaimer.position = Vector2(30, -33)
 	root.add_child(disclaimer)
@@ -442,3 +520,82 @@ func _label(text: String, font_size: int, color: Color) -> Label:
 	label.add_theme_constant_override(&"shadow_offset_y", 2)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return label
+
+
+func _build_combat_range() -> void:
+	weapon = WeaponScript.new()
+	weapon.state = combat
+	weapon.excluded = [_player.get_rid()]
+	add_child(weapon)
+	weapon.weapon_changed.connect(_combat_hud.show_weapon)
+	weapon.weapon_changed.connect(_pistol.show_profile)
+	_pistol.show_profile(weapon.current_profile())
+	combat_range = RangeScript.new()
+	combat_range.name = "CombatRange"
+	add_child(combat_range)
+	interaction = InteractionScript.new()
+	interaction.reach = LabRules.interaction_reach
+	add_child(interaction)
+	_feedback = FeedbackScript.new()
+	add_child(_feedback)
+	weapon.shot_traced.connect(_on_shot_traced)
+	combat_range.shield_station.activated.connect(combat.refill_shield)
+	combat_range.terminal.activated.connect(func():
+		combat_range.door.activate()
+		_sample_status = tr("Terminal kapıyı açtı"))
+	combat.reserve_ammo = LabRules.limited_reserve if _limited_ammo else -1
+
+
+func _update_lab_commands(delta: float) -> void:
+	var focused: bool = get_window().has_focus()
+	var can_act: bool = focused and combat.health > 0.0 and combat.stun_remaining <= 0.0
+	_player.set_physics_process(combat.health > 0.0 and combat.stun_remaining <= 0.0)
+	_hazard_wait = maxf(_hazard_wait - delta, 0.0)
+	if combat_range.hazard.overlaps_body(_player) and _hazard_wait <= 0.0:
+		combat.apply_damage(LabRules.hazard_damage, 1)
+		combat.apply_stun(LabRules.hazard_stun)
+		_hazard_wait = LabRules.hazard_interval
+	if not can_act:
+		if not focused:
+			_player.velocity.x = 0.0
+			_player.velocity.z = 0.0
+		interaction.cancel()
+		_combat_hud.show_context(tr("F5: yeniden başlat") if combat.health <= 0.0 else "")
+		return
+	for index in range(4):
+		if Input.is_action_just_pressed(StringName("weapon_%d" % (index + 1))):
+			weapon.select_weapon(index)
+	if Input.is_action_just_pressed(&"interaction_toggle"):
+		interaction.cancel()
+		interaction.toggle_mode = not interaction.toggle_mode
+	if Input.is_action_just_pressed(&"effects_toggle"):
+		_reduced_effects = not _reduced_effects
+		_feedback.reduced = _reduced_effects
+		_pistol.set_meta(&"reduced", _reduced_effects)
+	if Input.is_action_just_pressed(&"ammo_mode"):
+		_limited_ammo = not _limited_ammo
+		combat.reserve_ammo = LabRules.limited_reserve if _limited_ammo else -1
+	var candidate: Node3D = combat_range.pick_station(_camera, get_viewport().get_mouse_position())
+	var clear := candidate != null and combat_range.clear_sight(_player, candidate)
+	interaction.set_candidate(candidate, _player.global_position, clear)
+	interaction.step(Input.is_action_just_pressed(&"interact"), Input.is_action_pressed(&"interact"), delta)
+	var context := ""
+	if is_instance_valid(candidate):
+		context = tr(candidate.display_name) + " • "
+		if not interaction.reason.is_empty():
+			context += interaction.reason
+		else:
+			context += tr("E: kullan") + " %d%%" % int(interaction.progress * 100.0)
+	if interaction.toggle_mode:
+		context += "  " + tr("E aç/kapa")
+	if _limited_ammo:
+		context += "  " + tr("Yedek") + ": %d" % combat.reserve_ammo
+	_combat_hud.show_context(context)
+
+
+func _on_shot_traced(start: Vector3, finish: Vector3, hit: bool) -> void:
+	_feedback.trace_shot(start, finish, hit)
+	if hit:
+		_combat_hud.show_hit()
+		_pistol.confirm_hit(LabRules.impact_duration)
+		_feedback.play_tone(700.0, true)

@@ -15,7 +15,7 @@ Kaynak: [oyun özeti](../design/game-brief.md). Bu belge orijinal tasarımdaki e
 
 ## Faz 2 — Gerçek co-op doğrulaması
 
-**Amaç:** 2/3/4 gerçek oyuncu ile oynanışı ve host yetkisini doğrulamak.
+**Amaç:** 2/3/4 gerçek oyuncu ile oynanışı ve host yetkisini doğrulamak./resume
 
 **İş:** ENet, istek doğrulama, spawn/senkronizasyon, girdi ve hedefleme, kopma/yeniden bağlanma; iki kişilik melez roller, üç kişilik eksik-rol alternatifleri; gerçek ortak eylem, ping ve sürtüşme. Faz 1 kodu girdi/oyun durumu ayrımıyla taşınır; ağın sıfır maliyetli ekleneceği varsayılmaz.
 
@@ -33,7 +33,8 @@ Kaynak: [oyun özeti](../design/game-brief.md). Bu belge orijinal tasarımdaki e
 
 **Amaç:** doğrulanmış mekanikleri hedef kimlikte, yeterli içerikle sunmak.
 
-**İş:** oda konseptleri ve iskelet çeşitleri, karakterler, animasyonlar, dreamcore mekanlar, nihai ses/VFX, görsel dil, tam UI/erişilebilirlik ve performans iyileştirmeleri. Temel okunabilirlik ve gerekli erişilebilirlik bu faza kadar ertelenmez.
+**İş:** oda konseptleri ve iskelet çeşitleri, karakterler, animasyonlar, dreamcore mekanlar, nihai ses/VFX, görsel dil, tam UI/erişilebil/resume
+irlik ve performans iyileştirmeleri. Temel okunabilirlik ve gerekli erişilebilirlik bu faza kadar ertelenmez.
 
 **Çıkış:** içerik hedefleri ve sanat/ses standartları karşılanır; efektler mekanik bilgiyi örtmez; hedef donanımda performans ölçülür.
 

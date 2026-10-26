@@ -25,12 +25,6 @@ extends Resource
 ## Zero disables jump poses without changing physics; one applies the full pose.
 @export_range(0.0, 1.0, 0.01) var jump_animation_strength: float = 1.0
 
-@export_group("Dash")
-@export_range(0.0, 60.0, 0.1) var dash_speed: float = 15.0
-@export_range(0.0, 2.0, 0.01) var dash_duration: float = 0.17
-## Time between dash activations, measured from the start of the previous dash.
-@export_range(0.0, 10.0, 0.01) var dash_cooldown: float = 0.9
-
 @export_group("Camera")
 @export_range(0.1, 50.0, 0.1) var camera_height: float = 16.0
 @export_range(0.1, 50.0, 0.1) var camera_depth: float = 11.2
