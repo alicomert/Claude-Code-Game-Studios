@@ -12,6 +12,9 @@ const WeaponScript = preload("res://src/combat/weapon_controller.gd")
 const RangeScript = preload("res://src/lab/combat_range.gd")
 const InteractionScript = preload("res://src/interaction/interaction_controller.gd")
 const FeedbackScript = preload("res://src/combat/shot_feedback.gd")
+const GameplayHooksScript = preload("res://src/gameplay/gameplay_hooks.gd")
+const CombatJuiceHookScript = preload("res://src/gameplay/combat_juice_hook.gd")
+const DirectorPacingHookScript = preload("res://src/gameplay/director_pacing_hook.gd")
 const LabRules = preload("res://assets/data/lab_rules.tres")
 const SPAWN := Vector3(0.0, 0.75, 5.0)
 const FLOOR_COLOR := Color("172333")
@@ -20,6 +23,11 @@ const TEAL := Color("66e0c2")
 const ORANGE := Color("ffae73")
 
 @export var tuning: TuningScript
+
+## Dinamik Oyun Kancaları ve Yönetmen
+var hooks: GameplayHooksScript
+var combat_juice: CombatJuiceHookScript
+var director_pacing: DirectorPacingHookScript
 
 ## Per-lab health and ammunition; external damage systems call combat.apply_damage().
 var combat: CombatScript
@@ -72,6 +80,24 @@ func _ready() -> void:
 	_pistol.position = Vector3(0.38, 0.86, -0.48)
 	_visual_root.add_child(_pistol)
 	combat.fired.connect(_pistol.play_shot)
+
+	# Dinamik kancaları ilklendir ve kameraya / olaylara bağla
+	hooks = GameplayHooksScript.new()
+	combat_juice = CombatJuiceHookScript.new(hooks)
+	director_pacing = DirectorPacingHookScript.new(hooks)
+
+	hooks.shake_requested.connect(func(trauma: float):
+		if is_instance_valid(_camera):
+			_camera.add_trauma(trauma)
+	)
+	hooks.landing_impact.connect(func(speed: float):
+		if is_instance_valid(_camera):
+			_camera.add_landing_dip(speed)
+	)
+	combat.fired.connect(combat_juice.on_fired)
+	combat.damaged.connect(combat_juice.on_player_damaged)
+	_player.landed.connect(combat_juice.on_player_landed)
+
 	_build_hud()
 	_build_combat_range()
 	var arguments := OS.get_cmdline_user_args()
@@ -91,6 +117,13 @@ func _process(delta: float) -> void:
 		_animate_jump(delta)
 		combat.advance(delta)
 		weapon.advance(delta)
+		if combat_juice != null:
+			combat_juice.advance(delta)
+		if director_pacing != null:
+			var max_h: float = maxf(combat.max_health, 1.0)
+			var max_a: float = maxf(float(combat.magazine_capacity), 1.0)
+			director_pacing.advance(delta, combat.health / max_h, float(combat.ammo) / max_a)
+			director_pacing.check_and_trigger_director_event()
 		_kick = maxf(_kick - delta, 0.0)
 		_camera.h_offset = sin(_kick * 120.0) * _kick if not _reduced_effects else 0.0
 		_update_lab_commands(delta)

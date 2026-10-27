@@ -11,7 +11,7 @@ Kaynak: [oyun özeti](../design/game-brief.md). Bu belge orijinal tasarımdaki e
 
 **Çıkış kapısı:** [mekanik listesinde](phase-1-mechanics.md) bütün kapsam satırları kanıtla değerlendirilir; bloke/bilinmeyen satırlar açıkça görünür. Kullanıcı alışılabilirlik ve hissiyatı açıkça onaylar. Yardımcıyla test, gerçek co-op eğlencesinin/ağ davranışının kanıtı değildir. Onay olmadan Faz 2 başlamaz.
 
-**Şu an:** P1-01 hareket/kamera temeli kodlandı; ana projede import ve 67 birim kontrolü geçti. Gerçek görüntülü çalıştırma araç zaman aşımı nedeniyle NOT ASSESSED; ekran görüntüsü ve kullanıcı hissiyat onayı yok. P1-01 kapatılmadı; Faz 1 bütünü tamamlanmadı.
+**Güncel koordinasyon (2026-10-27):** Faz 1 işleri [iki çalışma hattına](<phase-1-workstreams.md>) bölündü; sahiplik, bağımlılık, dosya kapsamı ve kabul ölçütleri [manifestte](<../.sdlc/phase1_tasks.json>) tutulur. alicomert oyuncu/silah/hissiyat ve ortak entegrasyon; okanipk nesne/dünya/karşılaşmalar. `python -B tools/sdlc/runner.py start` kimliğe göre sıradaki görevi gösterir; kod yazmaz ve GitHub'a bağlanmaz. Mevcut hareket/silah/etkileşim temelleri yeniden doğrulanacaktır; bu altyapı kurulumu oyun mekaniklerini tamamlanmış saymaz. [Son mekanik teslim kaydı](<qa/phase-packages-2026-10-26.md>) tarihsel kanıttır; kullanıcı hissiyat ve Faz 2 geçiş onayı hâlâ ayrıdır.
 
 ## Faz 2 — Gerçek co-op doğrulaması
 

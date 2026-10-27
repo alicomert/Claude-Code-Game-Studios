@@ -9,6 +9,28 @@ const TuningScript = preload("res://src/data/movement_tuning.gd")
 ## Optional ground reference: follow X/Z without bobbing with the airborne body.
 @export var height_anchor: Node3D
 
+## Dinamik Kamera Sarsıntısı (Trauma/Shake) ve İniş Çökmesi (Landing Dip)
+var trauma: float = 0.0
+var landing_dip: float = 0.0
+var _shake_time: float = 0.0
+
+const TRAUMA_DECAY: float = 1.4
+const MAX_SHAKE_OFFSET: float = 0.25
+const MAX_SHAKE_ROLL: float = 0.03
+const DIP_RECOVERY_SPEED: float = 7.5
+
+
+## Kamera sarsıntı travması ekler (0.0 - 1.0)
+func add_trauma(amount: float) -> void:
+	trauma = clampf(trauma + amount, 0.0, 1.0)
+
+
+## Sert inişlerde kamerayı hafifçe aşağı çöktürür
+func add_landing_dip(speed: float) -> void:
+	if speed > 2.0:
+		landing_dip = minf(landing_dip + (speed * 0.035), 0.35)
+
+
 func _ready() -> void:
 	if tuning == null:
 		push_error("PlayerCamera requires an injected MovementTuning resource.")
@@ -29,12 +51,26 @@ func _process(delta: float) -> void:
 	if right.is_zero_approx():
 		right = Vector3.RIGHT
 	var back: Vector3 = right.cross(Vector3.UP).normalized()
-	var desired: Vector3 = follow_point() + _camera_offset() + right * edge.x + back * edge.y
+	# Dinamik sarsıntı ve çökme güncellemesi
+	if trauma > 0.0:
+		_shake_time += delta * 32.0
+		trauma = maxf(trauma - delta * TRAUMA_DECAY, 0.0)
+	if landing_dip > 0.0:
+		landing_dip = maxf(landing_dip - delta * DIP_RECOVERY_SPEED, 0.0)
+	var shake_power: float = trauma * trauma
+	var shake_offset: Vector3 = Vector3(
+		sin(_shake_time * 1.3) * MAX_SHAKE_OFFSET * shake_power,
+		-landing_dip + cos(_shake_time * 1.7) * (MAX_SHAKE_OFFSET * 0.5) * shake_power,
+		sin(_shake_time * 0.8) * MAX_SHAKE_OFFSET * shake_power
+	)
+	var desired: Vector3 = follow_point() + _camera_offset() + right * edge.x + back * edge.y + shake_offset
 	global_position = smooth_follow(global_position, desired,
 		tuning.camera_follow_sharpness, delta)
 	# Keep the inclination fixed while following/panning; mouse movement translates
 	# the camera rather than orbiting or rotating the movement coordinate system.
 	look_at(global_position - _camera_offset(), Vector3.UP)
+	if shake_power > 0.001:
+		rotation.z += sin(_shake_time * 1.9) * MAX_SHAKE_ROLL * shake_power
 
 
 ## Place the camera immediately over its target, clearing any accumulated edge pan.

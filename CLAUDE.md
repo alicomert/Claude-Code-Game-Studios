@@ -1,7 +1,15 @@
 # Claude Code Game Studios -- Game Studio Agent Architecture
 
-Indie game development managed through 49 coordinated Claude Code subagents.
+Indie game development managed through 49 coordinated specialist agents, operating under the universal AI-Native SDLC standard.
 Each agent owns a specific domain, enforcing separation of concerns and quality.
+
+## Global AI-Native SDLC & Multi-Agent Standards
+
+This project adheres to the universal vendor-neutral AI lifecycle and multi-agent specifications:
+- **Universal Multi-Agent Roster & Protocol**: @AGENTS.md
+- **Universal AI-Native SDLC 6-Phase Standard**: @SDLC.md
+- **Deterministic Validation & Runner**: `python tools/sdlc/runner.py test`
+- **Multi-Agent Task & Write-Scope Orchestrator**: `python tools/sdlc/orchestrator.py`
 
 ## Technology Stack
 

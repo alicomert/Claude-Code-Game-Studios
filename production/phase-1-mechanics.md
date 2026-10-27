@@ -4,6 +4,10 @@
 
 ## Güncel teslim
 
+### 2026-10-27 — İki geliştirici görev ayrımı ve manifest bağlantısı
+
+Faz 1 dinamiklerinin tamamı kullanıcı onayıyla `alicomert` (oyuncu/silah/hissiyat/ortak entegrasyon) ve `okanipk` (nesne/dünya/karşılaşmalar) arasında iki çalışma hattına bölünmüştür. Tek ve bağlayıcı görev, bağımlılık, yazma kapsamı ve kabul kaynağı [.sdlc/phase1_tasks.json](<../.sdlc/phase1_tasks.json>) ve [çalışma planıdır](<phase-1-workstreams.md>). Aşağıdaki tarihsel kontrol listesi kapsam rehberidir; tek başına güncel tamamlanma durumu veya yetki kaynağı değildir.
+
 ### 2026-10-26 — Seçilen paketlerin güncellemesi
 
 P1-01A teknik hareket/zıplama kabulü ve 45/75 cm engel aşma senaryoları geçti; kullanıcı hissiyat onayı bekliyor. Space zıplama, genel atılma yok. P1-02'de dört silah profili, raycast isabet/hasar, kalkan/sersemleme, siper, hasar alanı, sınırsız R (varsayılan) ve ayrı sınırlı mermi örneği eklendi. P1-04A'da E kısa/uzun/iptal, T aç-kapa, menzil/LOS ve terminal/kapı/kalkan istasyonu çalışıyor. Envanter, kasa ve roller bu teslim değil.
