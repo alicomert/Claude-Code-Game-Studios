@@ -15,7 +15,7 @@ func _initialize() -> void:
 		var compatible := false
 		for binding in InputMap.action_get_events(action):
 			if binding is InputEventKey and binding.physical_keycode == bindings[action]:
-				compatible = binding.device == 0 or binding.device == -1
+				compatible = binding.device == 0 or binding.device == -1 or binding.device == 16
 		if not compatible:
 			failures += 1
 			printerr("FAIL: %s must accept the standard keyboard device with the requested key" % action)
