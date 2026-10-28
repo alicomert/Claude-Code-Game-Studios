@@ -57,14 +57,10 @@ def run_headless_tests(filter_pattern: str = "") -> int:
         return 0
 
     test_files = sorted(unit_tests_dir.rglob("*.gd"))
-    # test_keyboard_bindings gibi özel ortam gerektiren veya etkileşimli testleri filtreleme seçeneği
     selected_tests = []
     for tf in test_files:
         rel = tf.relative_to(ROOT_DIR).as_posix()
         if filter_pattern and filter_pattern.lower() not in rel.lower():
-            continue
-        # Etkileşimli pencere bekleyen dosyaları hariç tut
-        if "keyboard_bindings" in tf.name:
             continue
         selected_tests.append(tf)
 
