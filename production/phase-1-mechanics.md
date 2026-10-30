@@ -24,34 +24,38 @@ Hissiyat **kullanıcı onayı bekliyor**. Diğer blokların tamamı **Planlandı
 /
 | Blok | İşlevsel kapsam | Laboratuvar doğrulaması | Durum |
 |---|---|---|---|
-| P1-01 hareket | WASD, normalize çapraz hareket, hızlanma/durma, fareye dönüş, Shift, süre/bekleme sınırlı atılma, çarpışma | Açık alan/slalom/dar geçit/duvar; sıfırlama; odak kaybı | Uygulanıyor |
-| P1-01 zıplama | V, yerde tek sıçrama, 1 m tepe, havada tekrar yok, dash etkileşimi; kalkış/uçuş/iniş prosedürel pozu | 45/75 cm engeller, yüksek duvar, reset; sabit kamera yüksekliği; görsel kanıt | Uygulanıyor |
-| P1-01 kamera | 55° perspektif, yumuşak takip, en çok 4 m kenar kayması, merkezleme | Merkez ve dört kenar; farklı delta; oyuncu görünür | Uygulanıyor |
-| P1-02 silah | Şok tabancası, pompalı, hafif tabanca, karabina; saçılma, geri tepme, doldurma, sınırlı mermi | Hedef tahtası; hareket/ateş dağılımı; boş şarjör | Planlandı |
-| P1-02 hasar | Can/kalkan, sersemleme, siper, dost hasarı yok, namlu/vuruş geri bildirimi | Hasar kaynağı; kalkan önceliği; efekt azaltma | Planlandı |
-| P1-03 Kilit | Hack, Sigorta Ağı, Kablo Gözü, hackte hareketsizlik | Kamera/terminal/elektrik hedefleri; kesilme/iptal | Planlandı |
-| P1-03 Kırıcı | Omuz Darbesi/kırma, Kalkan Duvarı, Sağlam, gürültü zayıflığı | Kırılabilir kapı; kalkan ömrü; gürültü kıyası | Planlandı |
-| P1-03 Yük | Atış yayı, çanta/çekirdek fırlatma, duman/yem, büyük çanta, çekirdekle kısıtlar | Yakalama/kaçırma; AI yem yönelimi; kapasite | Planlandı |
-| P1-03 Göz | Drone kontrolü/görüşü, tarama, hızlı kaldırma, sessiz etkisizleştirme menzili | Drone sırasında gövde savunmasızlığı; bilgi süresi | Planlandı |   
-| P1-04 imleç | Boş/silah/fırlatma/etkileşim/engelli/partner/terminal/kasa/düşman/ping/yetenek | Menzil ve öncelik değişimleri; kısa neden metni | Planlandı |
-| P1-04 etkileşim | E kısa/uzun/iptal, envanter, slot, toplama/bırakma/aktarma | Dolu çanta; hedef kaybı; basılı tutma/toggle | Planlandı |
-| P1-04 kasalar | Küçük/kilitli/ağır/tuzaklı/düşüş; anahtar/hack/kırma/ortak açma; dört nadirlik | Alarm/işaret/geri sayım; aynı kasaya çift istek | Planlandı |
-| P1-04 eşya | Tüketim/saldırı/yardımcı/modül/garip davranışları | Her davranışa en az bir örnek; modül temizliği | Planlandı |
-| P1-05 algı | Görüş/ses/ışık/iz, 0–100 şüphe, telsizle bilgi | Duvar arkası, kapı sönümleme, görünür/duyulur farkı | Planlandı |
-| P1-05 AI | Devriye/inceleme/şüphe/çatışma/arama/dönüş; devriye/kalkan/telsiz/tarayıcı/çevre botu | Her durum geçişi ve karşı hamle; sessiz etkisizleştirme | Planlandı |
-| P1-05 alarm/Şef | 0–4 alarm, düşme/terminal azaltma, kilitleme/takviye; fazlı Şef | Aşamaları tetikleme; tek oyuncuyla test edilebilir açık noktalar | Planlandı |
-| P1-06 engel | lazer, kayganlık, sıkışan kapı, kamera/taret, elektrikli su, çöken raf, gaz odası | Her engelin karşı hamlesi; rol yokken alternatif bir şey| Planlandı |
-| P1-06 mutatör | Karanlık, kaygan, yankı, küçülen, konveyör, sis, ağır çekim, tek yön, ayna, sessizlik | Tek tek ve izin verilen birleşimler; geri dönüşsüz kilit yok | Planlandı |
-| P1-06 üretim | İskelet/kaplama/mutatör/engel/ödül/olay; seed, bütçe, uyumluluk, Garip Oda | Sonlu yeniden deneme; aynı seed aynı plan; ulaşılabilirlik | Planlandı |
-| P1-06 Yönetmen | Gerilim/tepe/toparlanma; ilk 2 dk tepe yok; olay tekrarı/limit/ön belirti | Düşük can/toparlanma; el ile her olayı tetikleme | Planlandı |
-| P1-06 olaylar | Yangın, devriye, kesinti, yanlış anons, kasa yağmuru, kapı, kayıp eşya, ısınma, ikiz, konfeti | Etki/ön belirti/karşı hamle/temizlik; hasarsız olay ayrımı | Planlandı |
-| P1-07 ortak | İtme, at-yakala, yükselt, ortak kasa, kalkan arkası | Kontrollü yardımcı/rol değişimi; bırakma/iptal | Planlandı |
-| P1-07 kurtarma | Sistem Çöktü, sürünme/ping, kaldırma, süreli yeniden doğma/eşya kaybı, haklar | Tek düşme ve toplu çökme; yerden izlemeye geçiş netliği | Planlandı |
-| P1-07 takım | Altı kombo, 3 sn pencere, Uyum, Takım Hamlesi; ping tekeri ve hazır/oylama provası | Yardımcı üzerinden tetikleme; dolum sömürüsü ve cooldown | Planlandı |
-| P1-07 sürtüşme | İtme/kayma/çarpışma; dost hasarı yok | Yardımcı üzerinde komik fakat softlock üretmeyen sonuç | Planlandı |
-| P1-08 birleştirme | Kısa hedef/çekirdek/tahliye; güvenli nokta/reset; özet sayaçları | Bütün mekaniklerin bir arada denenmesi; tekrar üretilebilir senaryo | Planlandı |
-| P1-08 erişilebilirlik | İmleç boyut/renk, sembol, altyazı/yön, hold-toggle, remap, efekt azaltma/zamanlama yardımı | Ayarları gerçekten değiştirerek test; yalnız renk bilgisi yok | Planlandı |
-| P1-08 ayarlama | Dış veri, yeniden kurma, rol/eşya/düşman/olay seçme ve cooldown reset | Kullanıcının karşılaştırmalı his testi | Planlandı |
+| P1-01 hareket | WASD, normalize çapraz hareket, hızlanma/durma, fareye dönüş, Ctrl sessiz yürüme, Shift süre/bekleme sınırlı atılma, çarpışma | Açık alan/slalom/dar geçit/duvar; sıfırlama; odak kaybı | Doğrulandı |
+| P1-01 zıplama | Space, yerde tek sıçrama, 1 m tepe, havada tekrar yok, dash etkileşimi; kalkış/uçuş/iniş prosedürel pozu | 45/75 cm engeller, yüksek duvar, reset; sabit kamera yüksekliği; görsel kanıt | Doğrulandı |
+| P1-01 kamera | 55° perspektif, yumuşak takip, en çok 4 m kenar kayması, merkezleme | Merkez ve dört kenar; farklı delta; oyuncu görünür | Doğrulandı |
+| P1-02 silah | Şok tabancası, pompalı, hafif tabanca, karabina; saçılma, geri tepme, 2 sn doldurma, sınırlı/sınırsız mermi | Hedef tahtası; 3B kademeli açı; şarjör hafızası; boş şarjör | Doğrulandı |
+| P1-02 hasar | Can/kalkan, sersemleme, siper, hit-stop mikro-donma, kovan, kıvılcım | Hasar kaynağı; kalkan önceliği; efekt azaltma; vuruş ağırlığı | Doğrulandı |
+| P1-03 Kilit | Hack, Sigorta Ağı (EMP), Kablo Gözü (uzaktan hack) | Kamera/terminal/tuzak hedefleri; 12m EMP, 10m uzaktan hack | Doğrulandı |
+| P1-03 Kırıcı | Omuz Darbesi/kırma, Kalkan Duvarı, Sağlam, gürültü zayıflığı | Kırılabilir kapı; kalkan ömrü; düşman sersemletme | Doğrulandı |
+| P1-03 Yük | Atış yayı, güç hücresi fırlatma, duman/yem, 1.55x güçlü fırlatma | Fırlat-yakala; AI yem yönelimi; balistik yay | Doğrulandı |
+| P1-03 Göz | Drone kontrolü/görüşü, tarama, hızlı kaldırma, sessiz etkisizleştirme menzili | Drone sırasında savunmasız beden; 18m sonar tarama | Doğrulandı |   
+| P1-04 imleç | 6 modlu bağlamsal imleç (Hedef, Etkileşim, Menzil Dışı, Siper Arkası, Dost), tıklama önceliği | Menzil ve öncelik değişimleri; erişilebilir semboller ve mesafe | Doğrulandı |
+| P1-04 etkileşim | E kısa/uzun/iptal, envanter, slot, toplama/bırakma/aktarma | Dolu çanta koruması; slot takası; istifleme | Doğrulandı |
+| P1-04 kasalar | Küçük/kilitli/ağır/tuzaklı kasalar; anahtar/kırma/hack; dört nadirlik | Tek ödül garantisi; tuzak hasarı; anahtarlı kilit | Doğrulandı |
+| P1-04 eşya | Tüketim, saldırı, yardımcı, modül, garip (5 kategori) | 5 çalışan eşya kaynağı; çantada tüketim ve etki | Doğrulandı |
+| P1-05 algı | Görüş/ses/ışık/iz, 0–100 şüphe, telsizle bilgi | 110° görüş konisi; 20m silah sesi duyma; şüphe sönümlenmesi | Doğrulandı |
+| P1-05 AI | Pursuer düşman kovalama/yakın saldırı (12 hasar), sersemleme, geriye savrulma, ölüm, sıfırlama | Kovalama/saldırı menzili, sersemleme duraklaması, F5 sıfırlama, devriye/arama temeli | Doğrulandı |
+| P1-05 alarm/Şef | 0–4 alarm, terminal azaltma, kilitleme; 2 fazlı Şef | Seviye 2 kapı kilitleri; 2.5x arka zayıf nokta; Berserk fazı | Doğrulandı |
+| P1-06 engel | Lazer ızgarası (sürünerek geçiş), elektrikli su, çöken raf barikatı | Tuzak hasarı; sessiz yürümeyle kaçınma; disarm devreden çıkarma | Doğrulandı |
+| P1-06 mutatör | Karanlık, kaygan, yankı, küçülen, konveyör, sis, ağır çekim, tek yön, ayna, sessizlik | 10 mutatör; tohumlu üretim; uyumsuz çift engelleme | Doğrulandı |
+| P1-06 üretim | Deterministik seed üretimi, bütçe/uyumluluk | Tohum bazlı tekrar üretilebilir saha; softlock yok | Doğrulandı |
+| P1-06 Yönetmen | Gerilim/tepe/toparlanma; ilk 120s tepe yok; kritik can rahatlatması | 4 tempo durumu; 120s zirve koruması; mükerrer olay engeli | Doğrulandı |
+| P1-06 olaylar | Yangın, devriye, kesinti, yanlış anons, kasa yağmuru, kapı, kayıp eşya, ısınma, ikiz, konfeti | 10 olay destesi; 2.5s ön belirti uyarısı; bellek temizliği | Doğrulandı |
+| P1-07 ortak | Nesne çekme/sürükleme, fırlat-yakala, kalkan arkası | 6m çekme menzili; görüş engeli iptali; 1.2m varış | Doğrulandı |
+| P1-07 kurtarma | Sistem Çöktü, sürünme, canlandırma, 20s kanama sayacı, yardımcı robot | 1.2 m/s sürünme; 35 canla ayağa kalkma; AI yardımcı kurtarması | Doğrulandı |
+| P1-07 takım | Altı kombo, 3 sn pencere, Uyum (Synergy), Takım Hamlesi; ping çarkı ve oylama | 6 ikili rol kombosu; 100 Uyum nihai hamlesi; taktik işaret çarkı | Doğrulandı |
+| P1-07 sürtüşme | İtme/kayma/çarpışma; dost hasarı yok | Dost ateşi koruması; darbe savrulması | Doğrulandı |
+| P1-08 birleştirme | Kısa hedef-çekirdek-tahliye; güvenli nokta/reset; özet sayaçları | 5 aşamalı görev döngüsü; tahliye sahası savunması; tam özet | Doğrulandı |
+| P1-08 erişilebilirlik | İmleç boyut/renk, sembol, altyazı/yön, hold-toggle, remap, F6 efekt azaltma | 2.5x imleç; %20 sarsıntı modu; hold-toggle alternatifi | Doğrulandı |
+| P1-08 ayarlama | Dış veri, yeniden kurma, rol/eşya/düşman/olay seçme ve cooldown reset | F5 tam senkronize laboratuvar sıfırlaması; 19 modül uyumu | Doğrulandı |
+| P1-A09 aktif dolum | Synthetik stili tatlı nokta (%45-%75), anında dolum, 3 mermiye +%25 hasar, tutukluk | Sweet-spot zamanlaması, HUD barı, tutukluk cezası (+0.5s) | Doğrulandı |
+| P1-A10 lazer nişangah | Namludan 3B hedefe uzanan taktiksel lazer çizgisi, 4 silaha özel renk | Fiziksel temas noktası, mesafe sönümlenmesi, F6 uyumu | Doğrulandı |
+| P1-A11 düşman baskı | Ağır hasarda saldırı kesintisi (flinch) ve yana savrulma, baskıda %40 yavaşlama | Saldırı sayacı +0.35s gecikme, sendeletme, baskı eşiği | Doğrulandı |
+| P1-A12 mermi izleri | Kalıcı mermi yanık/delik izleri (decals, 8sn), açılı seken kıvılcımlar | Max 32 havuz sınırı, normal açılı yansıma, F5 temizliği | Doğrulandı |
 
 ## Açık tasarım noktaları
 

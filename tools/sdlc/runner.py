@@ -57,6 +57,12 @@ def run_headless_tests(filter_pattern: str = "") -> int:
         return 0
 
     test_files = sorted(unit_tests_dir.rglob("*.gd"))
+    p1_core_dir = ROOT_DIR / "tests" / "integration" / "p1_core"
+    if p1_core_dir.exists():
+        test_files.extend(sorted(p1_core_dir.rglob("*.gd")))
+    p1_full_dir = ROOT_DIR / "tests" / "integration" / "p1_full"
+    if p1_full_dir.exists():
+        test_files.extend(sorted(p1_full_dir.rglob("*.gd")))
     selected_tests = []
     for tf in test_files:
         rel = tf.relative_to(ROOT_DIR).as_posix()

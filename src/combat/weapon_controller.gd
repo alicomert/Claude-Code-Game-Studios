@@ -60,6 +60,11 @@ func fire_at(origin: Vector3, direction: Vector3, moving: bool) -> bool:
 	var spread: float = profile.spread_degrees + _bloom
 	if moving:
 		spread += profile.moving_spread
+
+	var final_damage: float = profile.damage
+	if state != null and "active_reload_bonus_shots" in state and state.active_reload_bonus_shots > 0:
+		final_damage *= 1.25
+
 	for pellet in range(maxi(profile.pellets, 1)):
 		var yaw := deg_to_rad(_random.randf_range(-spread, spread))
 		var ray: Vector3 = direction.normalized().rotated(Vector3.UP, yaw)
@@ -72,8 +77,12 @@ func fire_at(origin: Vector3, direction: Vector3, moving: bool) -> bool:
 			finish = hit.position
 			var collider: Object = hit.collider
 			if collider.has_method(&"receive_hit"):
-				damaged = collider.receive_hit(profile.damage, 0, profile.stun_duration)
+				damaged = collider.receive_hit(final_damage, 0, profile.stun_duration)
 		shot_traced.emit(origin, finish, damaged)
+
+	if state != null and "active_reload_bonus_shots" in state and state.active_reload_bonus_shots > 0:
+		state.active_reload_bonus_shots -= 1
+
 	_bloom = minf(_bloom + profile.recoil_spread, 8.0)
 	noise_emitted.emit(origin, profile.noise_radius)
 	return true

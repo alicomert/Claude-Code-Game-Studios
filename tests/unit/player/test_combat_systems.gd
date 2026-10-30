@@ -39,6 +39,7 @@ func run_tests() -> void:
 	check(ResourceLoader.exists("res://src/combat/weapon_controller.gd"), "World weapon controller exists")
 	if ResourceLoader.exists("res://src/combat/weapon_controller.gd"):
 		await test_weapons(state)
+	await test_3d_aiming_and_juice(state)
 	print("Combat systems: %d checks; %d failures" % [checks, failures])
 	quit(1 if failures else 0)
 
@@ -102,9 +103,61 @@ func test_weapons(state: Resource) -> void:
 	var rounds: int = state.ammo
 	controller.fire_at(Vector3.ZERO, Vector3.FORWARD, false)
 	check(pellet_hits[0] > 1 and state.ammo == rounds - 1, "Shotgun emits multiple damaging pellets for one round")
+	controller.select_weapon(3)
+	check(state.ammo == 12, "Carbine has separate 12-round magazine")
+	check(controller.current_profile().distance == 35.0, "Carbine has long engagement distance")
+	controller.advance(1.0)
+	var prev_hp: float = target.health
+	controller.fire_at(Vector3.ZERO, Vector3.FORWARD, false)
+	check(target.health == prev_hp - 30.0, "Carbine deals 30 damage per shot")
 	controller.reset_weapon()
 	target.reset_target()
 	check(state.ammo == 7 and target.health == 200.0, "World reset restores target and pistol")
 	target.queue_free()
 	controller.queue_free()
+	await process_frame
+
+
+func test_3d_aiming_and_juice(state: Resource) -> void:
+	var PlayerScript = load("res://src/player/player_controller.gd")
+	check(PlayerScript.has_method(&"calculate_3d_aim_direction"), "Controller exposes 3D aim calculation")
+	if PlayerScript.has_method(&"calculate_3d_aim_direction"):
+		var cam_origin := Vector3(0.0, 16.0, 11.2)
+		var weapon_origin := Vector3(0.0, 0.86, 0.0)
+		var ray_far: Vector3 = (Vector3(0.0, 0.0, -10.0) - cam_origin).normalized()
+		var ray_close: Vector3 = (Vector3(0.0, 0.0, -1.5) - cam_origin).normalized()
+		var dir_far: Vector3 = PlayerScript.calculate_3d_aim_direction(
+			cam_origin, ray_far, weapon_origin, 0.0)
+		var dir_close: Vector3 = PlayerScript.calculate_3d_aim_direction(
+			cam_origin, ray_close, weapon_origin, 0.0)
+		check(dir_close.y < -0.3, "Close aim points steeply downward toward feet")
+		check(is_zero_approx(dir_far.y), "Far aim beyond 6m levels out completely to horizontal")
+		check(dir_far.is_normalized() and dir_close.is_normalized(), "3D aim directions are normalized")
+		var fallback: Vector3 = PlayerScript.calculate_3d_aim_direction(
+			Vector3.ZERO, Vector3.FORWARD, weapon_origin, 0.0)
+		check(fallback.is_normalized(), "Fallback direction is normalized and finite")
+
+	var PistolScript = load("res://src/combat/pistol_visual.gd")
+	var pistol = PistolScript.new()
+	pistol.tuning = state
+	root.add_child(pistol)
+	pistol.aim_pitch = -0.35
+	pistol.is_reloading = true
+	pistol._process(0.1)
+	check(pistol.rotation.x < 0.0, "Visual pistol pitches downward with aim")
+	check(pistol._slide.rotation.z < 0.0, "Visual pistol slide tilts into reload stance")
+	pistol.reset_visual()
+	check(is_zero_approx(pistol.aim_pitch) and not pistol.is_reloading, "Reset clears pitch and reload state")
+	pistol.queue_free()
+
+	var FeedbackScript = load("res://src/combat/shot_feedback.gd")
+	var feedback = FeedbackScript.new()
+	root.add_child(feedback)
+	feedback.eject_casing(Vector3.ZERO, Vector3.RIGHT)
+	check(feedback._casings.size() == 1, "Eject casing spawns physical casing")
+	feedback.spawn_impact_sparks(Vector3.FORWARD, Vector3.UP, true)
+	check(feedback._sparks.size() > 0, "Spawn sparks generates impact debris")
+	feedback.reset_effects()
+	check(feedback._casings.is_empty() and feedback._sparks.is_empty(), "Reset clears active casings and sparks")
+	feedback.queue_free()
 	await process_frame

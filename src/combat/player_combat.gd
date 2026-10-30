@@ -8,6 +8,7 @@ signal fired()
 signal shield_changed(current: float, maximum: float)
 signal damaged(amount: float)
 signal reload_changed(remaining: float)
+signal active_reload_evaluated(success: bool, bonus_rounds: int)
 
 @export var max_health: float = 100.0
 @export var magazine_capacity: int = 7
@@ -29,6 +30,9 @@ var stun_remaining: float = 0.0
 ## Negative reserve means the default unlimited laboratory supply.
 var reserve_ammo: int = -1
 var reload_remaining: float = 0.0
+var active_reload_bonus_shots: int = 0
+var active_reload_window_start: float = 0.45
+var active_reload_window_end: float = 0.75
 var _recharge_wait: float = 0.0
 
 
@@ -38,6 +42,7 @@ func reset() -> void:
 	ammo = maxi(magazine_capacity, 0)
 	shield = 0.0
 	stun_remaining = 0.0
+	active_reload_bonus_shots = 0
 	cancel_reload()
 	_recharge_wait = maxf(shield_recharge_delay, 0.0)
 	shield_changed.emit(shield, max_shield)
@@ -72,6 +77,33 @@ func reload() -> bool:
 func cancel_reload() -> void:
 	reload_remaining = 0.0
 	reload_changed.emit(0.0)
+
+
+## Evaluate an active reload attempt (Synthetik sweet-spot mechanic).
+## Returns true on perfect timing (instant reload + 3 bonus rounds); false on mistimed jam.
+func attempt_active_reload() -> bool:
+	if reload_remaining <= 0.0 or health <= 0.0 or stun_remaining > 0.0:
+		return false
+	var progress: float = 1.0 - clampf(reload_remaining / maxf(reload_duration, 0.001), 0.0, 1.0)
+	if progress >= active_reload_window_start and progress <= active_reload_window_end:
+		# Sweet spot hit! Instant refill + damage boost
+		reload_remaining = 0.0
+		var supplied: int = maxi(magazine_capacity - ammo, 0)
+		if reserve_ammo >= 0:
+			supplied = mini(supplied, reserve_ammo)
+			reserve_ammo -= supplied
+		ammo += supplied
+		active_reload_bonus_shots = 3
+		ammo_changed.emit(ammo, magazine_capacity)
+		reload_changed.emit(0.0)
+		active_reload_evaluated.emit(true, active_reload_bonus_shots)
+		return true
+	else:
+		# Jam penalty: adds 0.5s delay
+		reload_remaining = minf(reload_remaining + 0.5, reload_duration + 0.5)
+		reload_changed.emit(reload_remaining)
+		active_reload_evaluated.emit(false, 0)
+		return false
 
 
 ## Damage entry point for future gameplay; invalid amounts never heal or poison state.

@@ -4,9 +4,19 @@ extends Node3D
 const Prop = preload("res://src/combat/damageable_prop.gd")
 const Station = preload("res://src/interaction/lab_interactable.gd")
 const Rules = preload("res://assets/data/lab_rules.tres")
+const EnemyBotScript = preload("res://src/combat/enemy_bot.gd")
+const ThrowableScript = preload("res://src/objects/throwable_prop.gd")
+const CrateScript = preload("res://src/loot/loot_crate.gd")
+const HazardObstacleScript = preload("res://src/world/obstacles/hazard_obstacle.gd")
+
+signal enemy_attacked(amount: float)
 
 var targets: Array[Node3D] = []
 var stations: Array[Node3D] = []
+var enemies: Array[Node3D] = []
+var throwable_prop: Node3D
+var loot_crate: Node3D
+var laser_corridor: Area3D
 var terminal: Node3D
 var door: Node3D
 var shield_station: Node3D
@@ -32,6 +42,27 @@ func _ready() -> void:
 	door = _station("Kapı", "door", Vector3(12.5, 1.1, 4), 0.0)
 	terminal = _station("Terminal", "terminal", Vector3(4, 0.5, 7), Rules.terminal_duration)
 	shield_station = _station("Kalkan istasyonu", "shield", Vector3(-4, 0.5, 5), 0.0)
+	_spawn_enemy("PursuerA", Vector3(-6.0, 0.7, -4.0))
+	_spawn_enemy("PursuerB", Vector3(7.0, 0.7, -6.0))
+
+	# Interactive throwable power cell
+	throwable_prop = ThrowableScript.new()
+	throwable_prop.position = Vector3(2.0, 0.3, 3.0)
+	add_child(throwable_prop)
+
+	# Interactive loot crate
+	loot_crate = CrateScript.new()
+	loot_crate.position = Vector3(6.0, 0.45, 3.0)
+	loot_crate.stored_item = load("res://assets/data/items/medkit.tres")
+	loot_crate.stored_count = 2
+	add_child(loot_crate)
+
+	# Environmental Laser Corridor
+	laser_corridor = HazardObstacleScript.new()
+	laser_corridor.hazard_type = HazardObstacleScript.HazardType.LASER_GRID
+	laser_corridor.position = Vector3(10.4, 0.35, -9.0)
+	add_child(laser_corridor)
+
 	hazard = Area3D.new()
 	hazard.name = "DamagePad"
 	hazard.position = Vector3(-10, 0.1, 6)
@@ -71,12 +102,35 @@ func _station(title: String, kind: String, point: Vector3, hold: float) -> Node3
 	stations.append(station)
 	return station
 
-## Reset all world fixtures, including broken cover and opened doors.
+func _spawn_enemy(bot_name: String, point: Vector3) -> Node3D:
+	var bot: CharacterBody3D = EnemyBotScript.new()
+	bot.name = bot_name
+	bot.spawn_position = point
+	bot.position = point
+	bot.attack_dealt.connect(func(amount: float): enemy_attacked.emit(amount))
+	add_child(bot)
+	enemies.append(bot)
+	return bot
+
+func set_enemy_target(player: Node3D) -> void:
+	for enemy in enemies:
+		enemy.target = player
+
+## Reset all world fixtures, including broken cover, opened doors and enemies.
 func reset_range() -> void:
 	for target in targets:
-		target.reset_target()
+		if target.has_method(&"reset_target"):
+			target.reset_target()
 	for station in stations:
 		station.reset_target()
+	for enemy in enemies:
+		enemy.reset_bot()
+	if is_instance_valid(throwable_prop) and throwable_prop.has_method(&"reset_prop"):
+		throwable_prop.reset_prop()
+	if is_instance_valid(loot_crate) and loot_crate.has_method(&"reset_crate"):
+		loot_crate.reset_crate()
+	if is_instance_valid(laser_corridor) and laser_corridor.has_method(&"reset_hazard"):
+		laser_corridor.reset_hazard()
 
 ## Find a station under the cursor, then check body-to-station line of sight separately.
 func pick_station(camera: Camera3D, mouse: Vector2) -> Node3D:

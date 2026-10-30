@@ -33,7 +33,7 @@ Her blok kendi içinde çalıştırılır; ilk bloğun bitmesi Faz 1'in bitmesi 
 
 - `project.godot` açılarak F6 değil **F5** ile laboratuvar çalıştırılabilir; çalışırken F5 sıfırlar.
 - WASD kameraya göre hareket eder; çapraz hareket hız kazandırmaz. Fare bakışı hareketten bağımsızdır.
-- Shift yavaşlatır; Space süre/bekleme sınırlı atılır; V yerdeyken yaklaşık 1 m zıplatır. Havada tekrar/tuş basılı otomatik zıplama yoktur; atılma sırasında zıplama başlamaz; duvarların içinden geçilmez.
+- Ctrl yavaşlatır; Shift süre/bekleme sınırlı atılır; Space yerdeyken yaklaşık 1 m zıplatır. Havada tekrar/tuş basılı otomatik zıplama yoktur; atılma sırasında zıplama başlamaz; duvarların içinden geçilmez.
 - Fareye dönüş katsayısı kullanıcı kararıyla22'den13,2'ye düşürüldü (%40); kamera kayması ve yürüyüş hızı değişmedi. Kalkış/uçuş/iniş için collider'dan ayrı prosedürel animasyon kullanılır; kamera zemin referansını izler. Taslak ve formüller: [zıplama spec](quick-specs/turn-response-jump-2026-10-22.md).
 - Kamera yaklaşık 55° eğimlidir. Kenara yaklaşan fare sınırlı kaydırma yapar; C basılıyken merkezlenir.
 - Esc duraklatır; F5 konum, hız, atılma ve kamerayı sıfırlar.
@@ -42,7 +42,7 @@ Her blok kendi içinde çalıştırılır; ilk bloğun bitmesi Faz 1'in bitmesi 
 
 ## Geçici kararlar
 
-- Kaynak belgedeki Space çakışması: Space atılma, C kamera merkezleme.
+- Kaynak belgedeki Space çakışması: Space zıplama, Shift atılma, Ctrl sessiz yürüme, C kamera merkezleme.
 - Kontrol laboratuvarında rol/ateş/etkileşim henüz yokken bunlar varmış gibi UI gösterilmez.
 - Erişilebilirlik, ayarlanabilir imleç, remap ve efekt azaltma Faz 1 çıkışından önce ele alınır; ilk teslimde tamamlanmış sayılmaz.
 - Tam test çatısı henüz kurulmadığı için ilk test bağımlılıksız Godot `SceneTree` çalıştırıcısıdır; gdUnit4/CI kurulduğu iddia edilmez.

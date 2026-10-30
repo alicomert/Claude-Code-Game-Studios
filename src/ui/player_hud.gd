@@ -2,6 +2,8 @@ extends Control
 ## Minimal health/ammunition overlay; mouse-position crosshair preserves lab aiming.
 
 const CombatScript = preload("res://src/combat/player_combat.gd")
+const ContextualCursorScript = preload("res://src/ui/contextual_cursor.gd")
+const ActiveReloadBarScript = preload("res://src/ui/active_reload_bar.gd")
 
 var _state: CombatScript
 var _bar: ProgressBar
@@ -15,6 +17,8 @@ var _context: Label
 var _hit_marker: Label
 var _hit_age := 0.0
 var _reload: Label
+var _cursor: ContextualCursorScript
+var _active_reload_bar: ActiveReloadBarScript
 
 
 func _ready() -> void:
@@ -89,6 +93,9 @@ func _ready() -> void:
 	_hit_marker.add_theme_color_override(&"font_color", Color("ffae73"))
 	_hit_marker.visible = false
 	add_child(_hit_marker)
+	_cursor = ContextualCursorScript.new()
+	_cursor.name = "ContextualCursor"
+	add_child(_cursor)
 	_reload = Label.new()
 	_reload.name = "ReloadStatus"
 	_reload.add_theme_color_override(&"font_color", Color("ffae73"))
@@ -98,6 +105,13 @@ func _ready() -> void:
 	_reload.offset_right = -28.0
 	_reload.offset_top = -165.0
 	_reload.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_active_reload_bar = ActiveReloadBarScript.new()
+	_active_reload_bar.name = "ActiveReloadBar"
+	add_child(_active_reload_bar)
+	_active_reload_bar.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_active_reload_bar.offset_left = -220.0
+	_active_reload_bar.offset_right = -30.0
+	_active_reload_bar.offset_top = -140.0
 
 
 func _process(delta: float) -> void:
@@ -107,10 +121,13 @@ func _process(delta: float) -> void:
 	_hit_marker.position = get_viewport().get_mouse_position() + Vector2(14, -22)
 	var focused: bool = get_window().has_focus()
 	var point: Vector2 = get_viewport().get_mouse_position()
-	_crosshair.visible = focused and not _paused and get_viewport_rect().has_point(point)
-	_crosshair.position = point - _crosshair.size * 0.5
+	var visible_now: bool = focused and not _paused and get_viewport_rect().has_point(point)
+	if is_instance_valid(_cursor):
+		_cursor.visible = visible_now
+		_cursor.position = point
+	_crosshair.visible = false
 	if focused:
-		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN if _crosshair.visible else Input.MOUSE_MODE_VISIBLE
+		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN if visible_now else Input.MOUSE_MODE_VISIBLE
 
 
 func _exit_tree() -> void:
@@ -129,6 +146,8 @@ func bind_state(state: CombatScript) -> void:
 	_state.ammo_changed.connect(_on_ammo_changed)
 	_state.shield_changed.connect(_on_shield_changed)
 	_state.reload_changed.connect(_on_reload_changed)
+	if is_instance_valid(_active_reload_bar):
+		_active_reload_bar.bind_state(_state)
 	reset_display()
 
 
@@ -153,6 +172,11 @@ func set_paused(value: bool) -> void:
 			_animation.pause()
 		else:
 			_animation.play()
+
+
+func set_cursor_context(mode: int, reason: String = "", distance: float = 0.0) -> void:
+	if is_instance_valid(_cursor):
+		_cursor.set_cursor_state(mode, reason, distance)
 
 
 func _on_health_changed(current: float, maximum: float) -> void:

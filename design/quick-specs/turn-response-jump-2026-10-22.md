@@ -20,7 +20,7 @@ Kullanıcı mevcut dönüşü hızlı buldu ve zıplamayı Faz 1'e dahil etti. A
 
 > Shift yavaşlatır; Space süre/bekleme sınırlı atılır; duvarların içinden geçmez.
 
-Yeni kural: Space atılması korunur; V ile yerdeyken tek zıplama başlatılır. Atılma sırasında ve aynı anda dash+jump durumunda zıplama kabul edilmez. Havada ikinci zıplama ve basılı tutarak otomatik hoplama yoktur. Hava yönlendirmesi normal WASD ile sürer; havada atılma dikey hızı silmez. Zıplama dokunulmazlık vermez.
+Yeni kural: Space ile yerdeyken tek zıplama başlatılır; Shift ile süre/bekleme sınırlı atılma yapılır; Ctrl ile sessiz yürüme yapılır. Atılma sırasında ve aynı anda dash+jump durumunda zıplama kabul edilmez. Havada ikinci zıplama ve basılı tutarak otomatik hoplama yoktur. Hava yönlendirmesi normal WASD ile sürer; havada atılma dikey hızı silmez. Zıplama dokunulmazlık vermez.
 
 ## New Rules / Values
 
@@ -40,8 +40,8 @@ Yeni kural: Space atılması korunur; V ile yerdeyken tek zıplama başlatılır
 | Hareket | Düşey hız, grounded kapısı, jump/land olayları | Controller ve testler |
 | Tuning | Dönüş13,2 ve yükseklik/animasyon parametreleri | .gd Resource + .tres |
 | Kamera | Dikey zıplama takibinin ayrılması | Ground-height anchor |
-| Lab/UI | V açıklaması, engeller, prosedürel pozlar | Lab script |
-| Input | V jump eylemi | project.godot |
+| Lab/UI | Kontrol açıklaması (Space zıpla, Shift atıl, Ctrl yavaş), engeller, prosedürel pozlar | Lab script |
+| Input | Space jump, Shift dash, Ctrl slow_walk eylemleri | project.godot |
 | Tasarım | P1-01 kapsam/kabul | Özet ve mekanik listesi |
 
 ## Acceptance Criteria

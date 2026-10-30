@@ -4,6 +4,11 @@ extends Node3D
 const CombatScript = preload("res://src/combat/player_combat.gd")
 
 var tuning: CombatScript
+## Desired vertical pitch angle toward the 3D mouse cursor target (in radians).
+var aim_pitch: float = 0.0
+## True while reloading; applies procedural reload stance.
+var is_reloading: bool = false
+
 var _slide: Node3D
 var _flash: MeshInstance3D
 var _light: OmniLight3D
@@ -35,7 +40,19 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _paused or _age < 0.0 or tuning == null:
+	if _paused or tuning == null:
+		return
+	# Visual vertical pitch toward 3D cursor position
+	rotation.x = lerp_angle(rotation.x, aim_pitch, 1.0 - exp(-24.0 * delta))
+	# Procedural reload pose
+	if is_reloading:
+		_slide.rotation.z = lerp_angle(_slide.rotation.z, deg_to_rad(-18.0), 1.0 - exp(-12.0 * delta))
+		_slide.position.y = lerpf(_slide.position.y, -0.06, 1.0 - exp(-12.0 * delta))
+	else:
+		_slide.rotation.z = lerp_angle(_slide.rotation.z, 0.0, 1.0 - exp(-16.0 * delta))
+		_slide.position.y = lerpf(_slide.position.y, 0.0, 1.0 - exp(-16.0 * delta))
+
+	if _age < 0.0:
 		return
 	if _impact_remaining > 0.0:
 		_impact_remaining = maxf(_impact_remaining - delta, 0.0)
@@ -64,6 +81,9 @@ func play_shot() -> void:
 func reset_visual() -> void:
 	_age = -1.0
 	_impact_remaining = 0.0
+	aim_pitch = 0.0
+	is_reloading = false
+	rotation.x = 0.0
 	_light.visible = false
 	_slide.position = Vector3.ZERO
 	_slide.rotation = Vector3.ZERO

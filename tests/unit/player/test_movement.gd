@@ -15,6 +15,7 @@ func _initialize() -> void:
 	_test_camera_relative_input_uses_ground_basis()
 	_test_acceleration_and_deceleration_are_bounded()
 	_test_slow_walk_uses_tuning_multiplier()
+	_test_dash_motion_and_cooldown()
 	_test_zero_delta_does_not_change_state()
 	_test_reset_clears_motion_and_restores_facing()
 	_test_focus_loss_cancels_horizontal_motion()
@@ -137,6 +138,22 @@ func _test_slow_walk_uses_tuning_multiplier() -> void:
 	_expect(player.is_slow_walking, "Slow-walk state is exposed")
 	player.simulate_motion(Vector2.ZERO, true, 1.0)
 	_expect(not player.is_slow_walking, "Idle is not reported as slow walking")
+	player.free()
+
+
+func _test_dash_motion_and_cooldown() -> void:
+	var player: PlayerScript = _make_player()
+	player.simulate_motion(Vector2.RIGHT, false, 0.05, true)
+	_expect_float(player.velocity.x, player.tuning.dash_speed, "Dash reaches tuned speed")
+	_expect(player.dash_remaining > 0.0, "Dash is active")
+	player.simulate_motion(Vector2.RIGHT, false, 0.20, false)
+	_expect(player.dash_remaining <= 0.0, "Dash expires after duration")
+	_expect(player.dash_cooldown_remaining > 0.0, "Dash cooldown is active")
+	player.simulate_motion(Vector2.RIGHT, false, 0.05, true)
+	_expect(player.dash_remaining <= 0.0, "Dash during cooldown is rejected")
+	player.reset_to(Vector3.ZERO)
+	_expect_float(player.dash_remaining, 0.0, "Reset clears dash remaining")
+	_expect_float(player.dash_cooldown_remaining, 0.0, "Reset clears dash cooldown")
 	player.free()
 
 

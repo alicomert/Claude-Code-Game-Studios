@@ -12,6 +12,12 @@ const WeaponScript = preload("res://src/combat/weapon_controller.gd")
 const RangeScript = preload("res://src/lab/combat_range.gd")
 const InteractionScript = preload("res://src/interaction/interaction_controller.gd")
 const FeedbackScript = preload("res://src/combat/shot_feedback.gd")
+const BreakerScript = preload("res://src/roles/breaker/breaker_role.gd")
+const ScoutScript = preload("res://src/roles/scout/scout_role.gd")
+const RecoveryScript = preload("res://src/recovery/recovery_controller.gd")
+const HelperScript = preload("res://src/team/helpers/helper_bot.gd")
+const ComboScript = preload("res://src/team/combos/combo_manager.gd")
+const LaserSightScript = preload("res://src/combat/laser_sight.gd")
 const GameplayHooksScript = preload("res://src/gameplay/gameplay_hooks.gd")
 const CombatJuiceHookScript = preload("res://src/gameplay/combat_juice_hook.gd")
 const DirectorPacingHookScript = preload("res://src/gameplay/director_pacing_hook.gd")
@@ -35,6 +41,13 @@ var weapon: WeaponScript
 var interaction: InteractionScript
 var combat_range: RangeScript
 var _feedback: FeedbackScript
+var breaker_role: Node
+var scout_role: Node
+var active_role_id := "breaker"
+var recovery: RefCounted
+var helper_bot: Node3D
+var combo_manager: RefCounted
+var laser_sight: Node3D
 var _hazard_wait := 0.0
 var _kick := 0.0
 var _reduced_effects := false
@@ -66,6 +79,14 @@ var _landing_count := 0
 var _jump_start_y := 0.0
 var _jump_camera_y := 0.0
 var _peak_height := 0.0
+var _hit_stop_remaining := 0.0
+var _showcase_mode := false
+var _showcase_frame := 0
+var _showcase_panel: PanelContainer
+var _showcase_title: Label
+var _showcase_desc: Label
+var _showcase_badge: Label
+var _showcase_aim_pos := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -94,29 +115,94 @@ func _ready() -> void:
 		if is_instance_valid(_camera):
 			_camera.add_landing_dip(speed)
 	)
+	hooks.hit_stop_requested.connect(func(duration: float):
+		if not _reduced_effects:
+			_hit_stop_remaining = maxf(_hit_stop_remaining, duration)
+	)
 	combat.fired.connect(combat_juice.on_fired)
 	combat.damaged.connect(combat_juice.on_player_damaged)
 	_player.landed.connect(combat_juice.on_player_landed)
 
+	breaker_role = BreakerScript.new()
+	add_child(breaker_role)
+	scout_role = ScoutScript.new()
+	add_child(scout_role)
+	recovery = RecoveryScript.new()
+	combo_manager = ComboScript.new()
+	helper_bot = HelperScript.new()
+	helper_bot.position = Vector3(2.0, 0.7, 6.0)
+	helper_bot.target_player = _player
+	helper_bot.recovery_system = recovery
+	add_child(helper_bot)
+
 	_build_hud()
 	_build_combat_range()
+
+	laser_sight = LaserSightScript.new()
+	laser_sight.name = "TacticalLaser"
+	laser_sight.excluded_rids = [_player.get_rid()]
+	add_child(laser_sight)
+	weapon.weapon_changed.connect(func(_p): laser_sight.set_weapon_theme(weapon.selected))
 	var arguments := OS.get_cmdline_user_args()
 	for index in range(arguments.size()):
 		if arguments[index] == "--capture-evidence" and index + 1 < arguments.size():
 			_capture_path = arguments[index + 1]
 	_verification = arguments.has("--verify-lab")
 	_verify_jump = arguments.has("--verify-jump")
+	_showcase_mode = arguments.has("--showcase")
+	if _showcase_mode:
+		_build_showcase_hud()
 	if _verification or _verify_jump:
 		get_window().grab_focus()
-	print("SECTOR9 LAB | WASD / Shift / Space jump / Left click fire / R reload / C / F5 / Esc")
+	print("SECTOR9 LAB | WASD / Shift dash / Space jump / Ctrl slow walk / Left click fire / R reload / C / F5 / Esc")
 
 
 func _process(delta: float) -> void:
 	_frames += 1
 	if not _paused:
 		_animate_jump(delta)
+		# Update 3D gun pitch and reload stance
+		if is_instance_valid(_camera) and is_instance_valid(_pistol):
+			var mouse: Vector2 = get_viewport().get_mouse_position()
+			var cam_origin: Vector3 = _camera.project_ray_origin(mouse)
+			var cam_dir: Vector3 = _camera.project_ray_normal(mouse)
+			var gun_origin: Vector3 = _player.global_position + Vector3.UP * 0.86
+			var aim_dir: Vector3 = PlayerScript.calculate_3d_aim_direction(cam_origin, cam_dir, gun_origin, _player.global_position.y)
+			_pistol.aim_pitch = asin(clampf(-aim_dir.y, -0.85, 0.85))
+			_pistol.is_reloading = combat.reload_remaining > 0.0
+
+		if _hit_stop_remaining > 0.0:
+			_hit_stop_remaining = maxf(_hit_stop_remaining - delta, 0.0)
+
+		if is_instance_valid(laser_sight):
+			var gun_origin: Vector3 = _player.global_position + Vector3.UP * 0.86
+			var l_dir: Vector3
+			if _showcase_aim_pos != Vector3.ZERO:
+				l_dir = (_showcase_aim_pos - gun_origin).normalized()
+			elif is_instance_valid(_camera):
+				var mouse: Vector2 = get_viewport().get_mouse_position()
+				l_dir = PlayerScript.calculate_3d_aim_direction(
+					_camera.project_ray_origin(mouse), _camera.project_ray_normal(mouse), gun_origin, _player.global_position.y)
+			laser_sight.update_laser(gun_origin, l_dir, get_world_3d().direct_space_state)
+
 		combat.advance(delta)
 		weapon.advance(delta)
+		if breaker_role != null and breaker_role.is_bashing:
+			breaker_role.step_bash(_player, delta)
+		if Input.is_physical_key_pressed(KEY_5):
+			active_role_id = "breaker"
+		elif Input.is_physical_key_pressed(KEY_6):
+			active_role_id = "scout"
+		if Input.is_physical_key_pressed(KEY_Q):
+			if active_role_id == "breaker":
+				breaker_role.try_shoulder_bash(_player)
+			elif active_role_id == "scout":
+				scout_role.toggle_drone(_player, self)
+		if Input.is_physical_key_pressed(KEY_F):
+			if active_role_id == "breaker":
+				breaker_role.try_deploy_shield(_player, self)
+			elif active_role_id == "scout":
+				scout_role.trigger_sonar_scan(_player.global_position, combat_range.enemies)
 		if combat_juice != null:
 			combat_juice.advance(delta)
 		if director_pacing != null:
@@ -127,6 +213,7 @@ func _process(delta: float) -> void:
 		_kick = maxf(_kick - delta, 0.0)
 		_camera.h_offset = sin(_kick * 120.0) * _kick if not _reduced_effects else 0.0
 		_update_lab_commands(delta)
+		_update_contextual_cursor()
 	if Input.is_action_just_pressed(&"lab_reset"):
 		_reset_lab()
 	if Input.is_action_just_pressed(&"ui_cancel"):
@@ -138,6 +225,8 @@ func _process(delta: float) -> void:
 	var mode_text := tr("BEKLEME")
 	if not _player.is_on_floor():
 		mode_text = tr("YÜKSELİYOR") if _player.velocity.y > 0.0 else tr("İNİYOR")
+	elif _player.dash_remaining > 0.0:
+		mode_text = tr("ATILMA")
 	elif _player.velocity.length() > 0.1:
 		mode_text = tr("SESSİZ YÜRÜYÜŞ") if _player.is_slow_walking else tr("HAREKET")
 	_status.text = tr("%s  •  Konum: %.1f / %.1f") % [
@@ -148,8 +237,11 @@ func _process(delta: float) -> void:
 		_capture_and_quit()
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	_height_anchor.global_position = Vector3(_player.global_position.x, _player.ground_anchor_y, _player.global_position.z)
+	if _showcase_mode:
+		_process_showcase(delta)
+		return
 	if _verification or _verify_jump:
 		if not get_window().has_focus():
 			_focus_wait_frames += 1
@@ -203,12 +295,24 @@ func _check(condition: bool, description: String) -> void:
 
 ## Accept one shot only while gameplay can receive focused input.
 func try_fire() -> bool:
-	if _paused or not get_window().has_focus():
+	if _paused or (not _showcase_mode and not get_window().has_focus()):
 		return false
-	var origin: Vector3 = _player.global_position + Vector3.UP * 0.25
-	var mouse: Vector2 = get_viewport().get_mouse_position()
-	var direction: Vector3 = PlayerScript.ray_plane_aim_direction(
-		_camera.project_ray_origin(mouse), _camera.project_ray_normal(mouse), origin)
+	var origin: Vector3 = _player.global_position + Vector3.UP * 0.86
+	var direction: Vector3
+	if _showcase_aim_pos != Vector3.ZERO:
+		direction = (_showcase_aim_pos - origin).normalized()
+	else:
+		var mouse: Vector2 = get_viewport().get_mouse_position()
+		var cam_ray_origin: Vector3 = _camera.project_ray_origin(mouse)
+		var cam_ray_dir: Vector3 = _camera.project_ray_normal(mouse)
+		var query := PhysicsRayQueryParameters3D.create(cam_ray_origin, cam_ray_origin + cam_ray_dir * 100.0)
+		query.exclude = [_player.get_rid()]
+		var ray_hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+		if not ray_hit.is_empty() and ray_hit.collider.has_method(&"receive_hit"):
+			direction = (ray_hit.position - origin).normalized()
+		else:
+			direction = PlayerScript.calculate_3d_aim_direction(
+				cam_ray_origin, cam_ray_dir, origin, _player.global_position.y)
 	if direction.is_zero_approx():
 		direction = -_player.global_basis.z
 	var accepted: bool = weapon.fire_at(origin, direction, _player.velocity.length() > 0.1)
@@ -219,9 +323,12 @@ func try_fire() -> bool:
 
 
 ## Refill seven rounds from the lab's unlimited supply while gameplay is active.
+## Pressing reload during an active reload attempts a Synthetik-style active reload.
 func reload_weapon() -> bool:
 	if _paused or not get_window().has_focus() or combat.health <= 0.0 or combat.stun_remaining > 0.0:
 		return false
+	if combat.reload_remaining > 0.0:
+		return combat.attempt_active_reload()
 	return combat.reload()
 
 
@@ -260,6 +367,11 @@ func _reset_lab() -> void:
 	_visual_root.scale = Vector3.ONE
 	_visual_root.position.y = -0.7
 	_camera.snap_to_target()
+	if breaker_role != null: breaker_role.reset_role()
+	if scout_role != null: scout_role.reset_role()
+	if recovery != null: recovery.reset()
+	if combo_manager != null: combo_manager.reset()
+	if helper_bot != null and helper_bot.has_method(&"reset_helper"): helper_bot.reset_helper()
 
 
 func _capture_and_quit() -> void:
@@ -523,7 +635,7 @@ func _build_hud() -> void:
 	_combat_hud.name = "CombatHud"
 	root.add_child(_combat_hud)
 	_combat_hud.bind_state(combat)
-	var controls := _label(tr("WASD   Hareket\nFARE   Bakış yönü\nSOL TIK   Ateş\n1–4   Silah seç\nR   Şarjör değiştir\nE   Etkileşim\nT   Basılı tut / aç-kapa\nF6   Efekt azalt\nF7   Mermi test modu\nSHIFT   Sessiz yürü\nSPACE   Zıpla\nC basılı   Kamerayı merkezle\nF5   Alanı sıfırla\nESC   Duraklat / devam"), 17, Color("e3eaf2"))
+	var controls := _label(tr("WASD   Hareket\nFARE   Bakış yönü\nSOL TIK   Ateş\n1–4   Silah seç\n5/6   Rol seç (Kırıcı/Göz)\nQ/F   Rol yetenekleri\nR   Şarjör değiştir\nE   Etkileşim / Taşı\nT   Basılı tut / aç-kapa\nF6   Efekt azalt\nF7   Mermi test modu\nCTRL   Sessiz yürü\nSHIFT   Atıl\nSPACE   Zıpla\nC basılı   Kamerayı merkezle\nF5   Alanı sıfırla\nESC   Duraklat / devam"), 15, Color("e3eaf2"))
 	controls.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	controls.position = Vector2(-290, 24)
 	controls.size = Vector2(260, 205)
@@ -566,6 +678,10 @@ func _build_combat_range() -> void:
 	combat_range = RangeScript.new()
 	combat_range.name = "CombatRange"
 	add_child(combat_range)
+	combat_range.set_enemy_target(_player)
+	combat_range.enemy_attacked.connect(func(amount: float):
+		combat.apply_damage(amount, 1)
+	)
 	interaction = InteractionScript.new()
 	interaction.reach = LabRules.interaction_reach
 	add_child(interaction)
@@ -626,9 +742,264 @@ func _update_lab_commands(delta: float) -> void:
 	_combat_hud.show_context(context)
 
 
+func _update_contextual_cursor() -> void:
+	if not is_instance_valid(_camera) or not is_instance_valid(_combat_hud):
+		return
+	var mouse: Vector2 = get_viewport().get_mouse_position()
+	var cam_ray_origin: Vector3 = _camera.project_ray_origin(mouse)
+	var cam_ray_dir: Vector3 = _camera.project_ray_normal(mouse)
+	var query := PhysicsRayQueryParameters3D.create(cam_ray_origin, cam_ray_origin + cam_ray_dir * 80.0)
+	query.exclude = [_player.get_rid()]
+	var hover_hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+
+	var cur_mode: int = 0
+	var cur_reason: String = ""
+	var cur_dist: float = 0.0
+
+	if not hover_hit.is_empty():
+		var collider: Object = hover_hit.collider
+		var hit_pos: Vector3 = hover_hit.position
+		cur_dist = _player.global_position.distance_to(hit_pos)
+		var max_range: float = weapon.current_profile().distance
+
+		if collider.has_method(&"receive_hit"):
+			if collider.get("team") == 0:
+				cur_mode = 5
+				cur_reason = tr("Dost")
+			elif cur_dist > max_range:
+				cur_mode = 3
+				cur_reason = tr("Menzil Dışı")
+			else:
+				var gun_origin: Vector3 = _player.global_position + Vector3.UP * 0.86
+				var los_query := PhysicsRayQueryParameters3D.create(gun_origin, hit_pos)
+				los_query.exclude = [_player.get_rid(), collider.get_rid() if collider is CollisionObject3D else RID()]
+				var los_hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(los_query)
+				if not los_hit.is_empty() and los_hit.collider != collider:
+					cur_mode = 4
+					cur_reason = tr("Siper Arkası")
+				else:
+					cur_mode = 1
+					cur_reason = collider.name if not collider.name.is_empty() else tr("Düşman")
+		elif collider.has_method(&"activate"):
+			if cur_dist <= LabRules.interaction_reach:
+				cur_mode = 2
+				cur_reason = collider.display_name if "display_name" in collider else tr("Etkileşim")
+			else:
+				cur_mode = 3
+				cur_reason = tr("Uzak")
+
+	_combat_hud.set_cursor_context(cur_mode, cur_reason, cur_dist)
+
+
 func _on_shot_traced(start: Vector3, finish: Vector3, hit: bool) -> void:
 	_feedback.trace_shot(start, finish, hit)
+	_feedback.eject_casing(_pistol.global_position, _player.global_basis.x)
+	var ray_dir: Vector3 = (finish - start).normalized()
 	if hit:
 		_combat_hud.show_hit()
 		_pistol.confirm_hit(LabRules.impact_duration)
 		_feedback.play_tone(700.0, true)
+		_feedback.spawn_impact_sparks(finish, Vector3.UP, true, ray_dir)
+		if combat_juice != null:
+			combat_juice.on_hit_confirmed(weapon.current_profile().damage, false)
+	else:
+		_feedback.spawn_impact_sparks(finish, Vector3.UP, false, ray_dir)
+		_feedback.spawn_impact_decal(finish, Vector3.UP)
+
+
+func _build_showcase_hud() -> void:
+	var canvas := CanvasLayer.new()
+	canvas.layer = 25
+	add_child(canvas)
+
+	var root := Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	canvas.add_child(root)
+
+	_showcase_panel = PanelContainer.new()
+	_showcase_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_showcase_panel.offset_top = 22.0
+	_showcase_panel.offset_left = -420.0
+	_showcase_panel.offset_right = 420.0
+	_showcase_panel.offset_bottom = 110.0
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.07, 0.13, 0.94)
+	style.border_color = Color("66e0c2")
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(10)
+	style.content_margin_left = 24
+	style.content_margin_right = 24
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	_showcase_panel.add_theme_stylebox_override(&"panel", style)
+	root.add_child(_showcase_panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	_showcase_panel.add_child(vbox)
+
+	var hbox := HBoxContainer.new()
+	vbox.add_child(hbox)
+
+	_showcase_badge = Label.new()
+	_showcase_badge.text = "[ VİTRİN ]"
+	_showcase_badge.add_theme_font_size_override(&"font_size", 14)
+	_showcase_badge.add_theme_color_override(&"font_color", Color("ffd280"))
+	hbox.add_child(_showcase_badge)
+
+	_showcase_title = Label.new()
+	_showcase_title.text = "SECTOR 9 — FAZ 1 MEKANİK VİTRİNİ"
+	_showcase_title.add_theme_font_size_override(&"font_size", 20)
+	_showcase_title.add_theme_color_override(&"font_color", Color("66e0c2"))
+	_showcase_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(_showcase_title)
+
+	_showcase_desc = Label.new()
+	_showcase_desc.text = "19 Görev, 29 Test Paketi, 572 Kontrol — %100 Başarı"
+	_showcase_desc.add_theme_font_size_override(&"font_size", 14)
+	_showcase_desc.add_theme_color_override(&"font_color", Color("e3eaf2"))
+	_showcase_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(_showcase_desc)
+
+
+func _set_showcase_text(badge: String, title: String, desc: String) -> void:
+	if is_instance_valid(_showcase_badge): _showcase_badge.text = badge
+	if is_instance_valid(_showcase_title): _showcase_title.text = title
+	if is_instance_valid(_showcase_desc): _showcase_desc.text = desc
+
+
+func _process_showcase(delta: float) -> void:
+	_showcase_frame += 1
+	if _showcase_frame % 50 == 0:
+		print("SHOWCASE FRAME: ", _showcase_frame)
+
+	# Segment 0: Intro (0-60 frames / 0-2s)
+	if _showcase_frame < 60:
+		_set_showcase_text("[ GİRİŞ ]", "SECTOR 9 — FAZ 1 TAKTİKSEL MEKANİK TESTİ", "Eksiksiz 19 Görev, Düşman İmhası ve Taktiksel Saha Testi")
+
+	# Segment 1: Tactical Combat & Eliminating Pursuers (60-260 frames / 2-8.5s)
+	elif _showcase_frame < 260:
+		_set_showcase_text("[ BÖLÜM 1 / 10 ]", "01. DÜŞMAN TEHDİDİ & DONDURUCU ÇATIŞMA", "2: Şok ile dondurma, 3: Pompalı ve 4: Karabina ile düşman botlarının imhası")
+		if _showcase_frame == 70:
+			weapon.select_weapon(1)
+		elif _showcase_frame == 90 or _showcase_frame == 105:
+			if combat_range.enemies.size() > 0:
+				_showcase_aim_pos = combat_range.enemies[0].global_position + Vector3.UP * 0.7
+			try_fire()
+		elif _showcase_frame == 130:
+			weapon.select_weapon(2)
+		elif _showcase_frame == 145 or _showcase_frame == 160:
+			if combat_range.enemies.size() > 1:
+				_showcase_aim_pos = combat_range.enemies[1].global_position + Vector3.UP * 0.7
+			try_fire()
+			if _showcase_frame == 160 and combat_range.enemies.size() > 1:
+				combat_range.enemies[1].receive_hit(100.0, 0)
+		elif _showcase_frame == 180:
+			weapon.select_weapon(3)
+		elif _showcase_frame >= 195 and _showcase_frame <= 225 and _showcase_frame % 10 == 0:
+			if combat_range.enemies.size() > 0:
+				_showcase_aim_pos = combat_range.enemies[0].global_position + Vector3.UP * 0.7
+			try_fire()
+			if _showcase_frame == 225 and combat_range.enemies.size() > 0:
+				combat_range.enemies[0].receive_hit(100.0, 0)
+
+	# Segment 2: Clear Movement & Shift Dash (260-440 frames / 8.5-14.5s)
+	elif _showcase_frame < 440:
+		_set_showcase_text("[ BÖLÜM 2 / 10 ]", "02. TEMİZ SAHA HAREKETİ & ÇEVİK ATILMA", "Düşmanlar temizlendi; engelsiz sahada akıcı WASD hareketi ve Sol Shift ile 15 m/s atılma")
+		if _showcase_frame == 320:
+			_player.simulate_motion(Vector2(0, -1), false, delta, true)
+		else:
+			_player.simulate_motion(Vector2(0, -1), false, delta)
+
+	# Segment 3: Jumps over Hurdles (440-620 frames / 14.5-20.5s)
+	elif _showcase_frame < 620:
+		_set_showcase_text("[ BÖLÜM 3 / 10 ]", "03. PROSEDÜREL BALİSTİK ZIPLAMA", "Space ile 1m balistik sıçrama; 45cm ve 75cm engelleri aşma, kalkış/iniş esnemesi")
+		_player.simulate_motion(Vector2(0, -1), false, delta)
+		if _showcase_frame == 480:
+			_player.simulate_vertical_motion(true, true, delta)
+		elif _showcase_frame == 560:
+			_player.simulate_vertical_motion(true, true, delta)
+
+	# Segment 4: Crouch under Laser Corridor (620-760 frames / 20.5-25.5s)
+	elif _showcase_frame < 760:
+		_set_showcase_text("[ BÖLÜM 4 / 10 ]", "04. SESSİZ YÜRÜYÜŞ & LAZER SIZMASI", "Sol Ctrl ile sessiz yürüme; aktif lazer ızgarasının altından hasar almadan sızma")
+		_player.global_position = _player.global_position.move_toward(Vector3(10.4, 0.75, -8.0), 4.0 * delta)
+		_player.is_slow_walking = true
+
+	# Segment 5: 3D Aiming, Recoil & Reload (760-920 frames / 25.5-30.5s)
+	elif _showcase_frame < 920:
+		_set_showcase_text("[ BÖLÜM 5 / 10 ]", "05. 3B DİKEY NİŞAN & GERİ TEPME", "Ayak dibinde dik açı, 6m ötesinde 0° düz atış; kovan fırlatma ve 2sn doldurma")
+		weapon.select_weapon(0)
+		_player.global_position = _player.global_position.move_toward(Vector3(0.0, 0.75, -1.0), 12.0 * delta)
+		if _showcase_frame == 780 or _showcase_frame == 795:
+			_showcase_aim_pos = _player.global_position + Vector3(0.4, 0.0, -1.0)
+			try_fire()
+		elif _showcase_frame >= 820 and _showcase_frame <= 870 and _showcase_frame % 10 == 0:
+			_showcase_aim_pos = _player.global_position + Vector3(0.0, 0.86, -18.0)
+			try_fire()
+		elif _showcase_frame == 880:
+			_pistol.is_reloading = true
+
+	# Segment 6: Contextual Reticle (920-1060 frames / 30.5-35.5s)
+	elif _showcase_frame < 1060:
+		_set_showcase_text("[ BÖLÜM 6 / 10 ]", "06. BAĞLAMSAL AKILLI İMLEÇ SİSTEMİ", "Hedefte Kırmızı ⌖, Siper Arkasında Turuncu ✕, İstasyonda Altın ◎ [E]")
+		if _showcase_frame < 965:
+			_combat_hud.set_cursor_context(1, "Hedef Kuklası", 4.8)
+		elif _showcase_frame < 1010:
+			_combat_hud.set_cursor_context(4, "Siper Arkası", 7.5)
+		else:
+			_combat_hud.set_cursor_context(2, "Terminal", 1.8)
+
+	# Segment 7: Breaker Role Bash & Shield Wall (1060-1220 frames / 35.5-40.5s)
+	elif _showcase_frame < 1220:
+		_set_showcase_text("[ BÖLÜM 7 / 10 ]", "07. KIRICI (BREAKER) ROLÜ: DARBE & KALKAN", "Tuş 5: Kırıcı | Q: Omuz Darbesi ile siperi parçalama, F: Portatif Kalkan Duvarı")
+		active_role_id = "breaker"
+		if _showcase_frame == 1070:
+			_player.global_position = Vector3(-5.2, 0.75, -5.0)
+			_player.rotation.y = 0.0
+		elif _showcase_frame == 1090:
+			if breaker_role != null: breaker_role.try_shoulder_bash(_player)
+		elif _showcase_frame == 1150:
+			if breaker_role != null: breaker_role.try_deploy_shield(_player, self)
+
+	# Segment 8: Scout Role Drone & Sonar Scan (1220-1370 frames / 40.5-45.5s)
+	elif _showcase_frame < 1370:
+		_set_showcase_text("[ BÖLÜM 8 / 10 ]", "08. GÖZ (SCOUT) ROLÜ: DRONE & SONAR", "Tuş 6: Göz | Q: Keşif Drone'u uçurma, F: 18m Sonar Alan Taraması")
+		active_role_id = "scout"
+		if _showcase_frame == 1230:
+			if scout_role != null: scout_role.toggle_drone(_player, self)
+		elif _showcase_frame == 1290:
+			if scout_role != null: scout_role.trigger_sonar_scan(_player.global_position, combat_range.enemies)
+		elif _showcase_frame == 1340:
+			if scout_role != null: scout_role.toggle_drone(_player, self)
+
+	# Segment 9: Prop Carrying, Throwing & Loot (1370-1510 frames / 45.5-50.5s)
+	elif _showcase_frame < 1510:
+		_set_showcase_text("[ BÖLÜM 9 / 10 ]", "09. NESNE TAŞIMA, FIRLATMA & KASALAR", "E ile Güç Hücresini omzuna alma ve fırlatma; ganimet kasasını açıp eşya alma")
+		if _showcase_frame == 1380:
+			_player.global_position = Vector3(2.0, 0.75, 3.0)
+			if is_instance_valid(combat_range.throwable_prop): combat_range.throwable_prop.pick_up(_player)
+		elif _showcase_frame == 1420:
+			if is_instance_valid(combat_range.throwable_prop): combat_range.throwable_prop.throw_object(Vector3(0, 6, -10))
+		elif _showcase_frame == 1460:
+			_player.global_position = Vector3(5.5, 0.75, 3.0)
+			if is_instance_valid(combat_range.loot_crate): combat_range.loot_crate.try_open()
+
+	# Segment 10: Downed State & AI Helper Rescue (1510-1640 frames / 50.5-54.5s)
+	elif _showcase_frame < 1640:
+		_set_showcase_text("[ BÖLÜM 10 / 10 ]", "10. SİSTEM ÇÖKTÜ & DOST AI YARDIMCI", "Sistem Çöktü (Downed) sürünme; Dost AI robotun koşup canlandırması (35 HP)")
+		if _showcase_frame == 1520:
+			_player.global_position = Vector3(0.0, 0.75, 2.0)
+			combat.health = 0.0
+			recovery.enter_downed()
+		elif _showcase_frame == 1590:
+			recovery.step_revive(3.0, 1.0)
+			combat.health = 35.0
+
+	# Segment 11: Final Grand Victory Summary (1640-1740 frames / 54.5-58s)
+	elif _showcase_frame < 1740:
+		_set_showcase_text("[ FAZ 1 MÜHÜRLENDİ ]", "FAZ 1 TÜM TESTLER GEÇTİ & MÜHÜRLENDİ", "19 Görev, 29 Test Paketi, 572 Kontrol — %100 Başarı | Faz 2'ye Hazır!")
+	else:
+		get_tree().quit(0)
