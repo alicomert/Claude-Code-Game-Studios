@@ -15,11 +15,20 @@ Kaynak: [oyun özeti](../design/game-brief.md). Bu belge orijinal tasarımdaki e
 
 ## Faz 2 — Gerçek co-op doğrulaması
 
-**Amaç:** 2/3/4 gerçek oyuncu ile oynanışı ve host yetkisini doğrulamak./resume
+**Amaç:** 2, 3 ve 4 gerçek oyuncu ile çok oyunculu oynanışı ve host yetkisini (server-authoritative) ENet üzerinde doğrulamak.
 
-**İş:** ENet, istek doğrulama, spawn/senkronizasyon, girdi ve hedefleme, kopma/yeniden bağlanma; iki kişilik melez roller, üç kişilik eksik-rol alternatifleri; gerçek ortak eylem, ping ve sürtüşme. Faz 1 kodu girdi/oyun durumu ayrımıyla taşınır; ağın sıfır maliyetli ekleneceği varsayılmaz.
+**İş:**
+- **Ağ Altyapısı & Lobi:** Godot 4.7 `ENetMultiplayerPeer`, 4-6 haneli oda koduyla lobiye bağlanma ve `MultiplayerSpawner` ile oyuncu eşlemesi.
+- **Sunucu Otoritesi (Host-Authoritative):** Hasar, düşman yapay zekası, alarmlar, kasa içerikleri ve Yönetmen host tarafında hesaplanır; istemciler 30 Hz hızında girdi ve nişan yönü gönderir.
+- **Eşzamanlama (Synchronization):** `MultiplayerSynchronizer` ile sık değişen (konum/hız) ve seyrek değişen (can/kalkan/durum) verilerin ayrı kanallarda gecikmesiz senkronu.
+- **Oyuncu Sayısına Göre Ölçekleme & Melez Roller:**
+  - *4 Oyuncu:* Dört tam rol (Kırıcı, Göz, Kilit, Yük).
+  - *3 Oyuncu:* Üç rol seçilir; eksik rolün yetenekleri kasa modülü veya alternatif rotayla kompanse edilir.
+  - *2 Oyuncu (Çift Modu):* İki melez rol devreye girer: **Teknik Gözcü** (Kilit + Göz: hack ve drone) ve **Baskın Taşıyıcı** (Kırıcı + Yük: darbe ve fırlatma).
+- **Dost Ateşi Yok, Fiziksel Sürtüşme Var:** Mermiler dost birimlere zarar vermez; fakat oyuncular birbirini iter, kaydırır ve güç hücrelerini elden ele atıp yakalar.
+- **Kopma & Yeniden Bağlanma:** Oyuncunun bağlantısı koptuğunda bot yerine geçmez; takım eksik devam eder ve 60–90 saniyelik geri dönme (reconnect) rezervasyon penceresi açık tutulur.
 
-**Çıkış:** bütün oyuncu sayılarıyla kritik yollar tamamlanır; gecikme/kopma senaryoları test edilir. Host düşmesinde tur sonu davranışı açıktır. İletişim ve gerçek takım hissi kullanıcı tarafından değerlendirilir.
+**Çıkış:** Bütün oyuncu sayılarıyla (2, 3 ve 4 kişi) kritik senaryolar test edilir; gecikme ve paket kaybı dayanıklılığı doğrulanır. Host düşmesinde tur kurtarma/sonlandırma davranışı açıktır. Kullanıcı gerçek takım hissiyatını değerlendirir.
 
 ## Faz 3 — Tam operasyon döngüsü
 
@@ -33,8 +42,7 @@ Kaynak: [oyun özeti](../design/game-brief.md). Bu belge orijinal tasarımdaki e
 
 **Amaç:** doğrulanmış mekanikleri hedef kimlikte, yeterli içerikle sunmak.
 
-**İş:** oda konseptleri ve iskelet çeşitleri, karakterler, animasyonlar, dreamcore mekanlar, nihai ses/VFX, görsel dil, tam UI/erişilebil/resume
-irlik ve performans iyileştirmeleri. Temel okunabilirlik ve gerekli erişilebilirlik bu faza kadar ertelenmez.
+**İş:** oda konseptleri ve iskelet çeşitleri, karakterler, animasyonlar, dreamcore mekanlar, nihai ses/VFX, görsel dil, tam UI/erişilebilirlik ve performans iyileştirmeleri. Temel okunabilirlik ve gerekli erişilebilirlik bu faza kadar ertelenmez.
 
 **Çıkış:** içerik hedefleri ve sanat/ses standartları karşılanır; efektler mekanik bilgiyi örtmez; hedef donanımda performans ölçülür.
 

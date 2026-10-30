@@ -15,7 +15,7 @@ This project adheres to the universal vendor-neutral AI lifecycle and multi-agen
 
 - **Engine**: Godot 4.7.2 Stable (Forward+ / Jolt Physics)
 - **Language**: GDScript (Strict Static Typing, `@export`, Signal Contracts)
-- **Multiplayer**: High-Level Multiplayer (`ENetMultiplayerPeer`, Server-Authoritative)
+- **Multiplayer**: High-Level Multiplayer (`ENetMultiplayerPeer`, Server-Authoritative Host, 2-4 Player Scaling, Hybrid Roles, Zero Friendly Fire)
 - **Version Control**: Git with trunk-based development
 - **Test Runner**: Headless Engine Testing (`python -B tools/sdlc/runner.py test`)
 - **Automated Godot Skills Router**: `@AGENTS.md#7-godot-47-otomatik-yetenek-ve-uzmanlik-katalogu`
