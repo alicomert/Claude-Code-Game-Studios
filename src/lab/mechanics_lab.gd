@@ -218,6 +218,8 @@ func _process(delta: float) -> void:
 		_reset_lab()
 	if Input.is_action_just_pressed(&"ui_cancel"):
 		set_paused(not _paused)
+	if _paused and Input.is_physical_key_pressed(KEY_M):
+		get_tree().change_scene_to_file("res://src/ui/main_menu.tscn")
 	if Input.is_action_just_pressed(&"reload"):
 		reload_weapon()
 	if Input.is_action_just_pressed(&"fire"):
@@ -648,7 +650,7 @@ func _build_hud() -> void:
 	disclaimer.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	disclaimer.position = Vector2(30, -33)
 	root.add_child(disclaimer)
-	_pause_label = _label(tr("DURAKLATILDI\nDevam etmek için ESC"), 28, ORANGE)
+	_pause_label = _label(tr("DURAKLATILDI\nDevam etmek için ESC • Menü için M"), 26, ORANGE)
 	_pause_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_pause_label.position = Vector2(-185, -45)
 	_pause_label.visible = false
