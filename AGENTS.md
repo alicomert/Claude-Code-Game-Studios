@@ -127,3 +127,41 @@ Projeyi iki geliştirici ve yapay zekâ ajanları birlikte yürütürken çakı�
 3. **Kilit Çakışması Yasağı:** Başka bir geliştiricinin kilitlediği dosyalar/klasörler serbest bırakılana kadar düzenlenemez; ajanlar kilitli alana yazma teklifinde bulunamaz.
 4. **İş Bitimi Kilit Bırakma:** Görev tamamlanıp testler geçtikten sonra kilit kaldırılır:
    `python tools/sdlc/locks.py release`
+
+---
+
+## 7. Godot 4.7 Otomatik Yetenek ve Uzmanlık Kataloğu (Awesome GameDev Agent Skills)
+
+> Kaynak: [awesome-gamedev-agent-skills](https://github.com/gamedev-skills/awesome-gamedev-agent-skills).  
+> **Otomatik Devreye Alma Kuralı:** Kullanıcının her istekte bir beceriyi (skill) tek tek elle belirtmesine gerek yoktur. Ajan, kullanıcının yaptığı istekteki teknik alana ve anahtar kelimelere (Trigger) bakarak aşağıdaki Godot 4.7 standartlarını **kendiliğinden ve otomatik olarak** devreye alır.
+
+### A. Godot 4.7 Çekirdek Motor Becerileri
+
+| Yetenek (Skill) | Kapsam ve Standartlar | Ne Zaman Otomatik Tetiklenir? (Triggers) |
+| :--- | :--- | :--- |
+| **`godot-gdscript`** | GDScript 4.7 dil kuralları: Katı tip güvenliği (`var x: int`, `-> void`), `@export` etiketleri, sinyal tanımları (`signal_name.emit()`), yaşam döngüsü (`_ready`, `_physics_process`), bellek yönetimi (`queue_free`, `RefCounted`). | Kod yazımı, GDScript sözdizimi düzeltmesi, refaktör veya sınıf tanımlama istekleri. |
+| **`godot-nodes-scenes`** | Sahne ağacı mimarisi: Miras yerine düğüm bileşimi (composition), `PackedScene` ile örnekleme (`instantiate()`), Autoload tekilleri ve `.tscn` dosya bütünlüğü. | Yeni sahne oluşturma, ağaç hiyerarşisi düzenleme veya sahne örnekleme görevleri. |
+| **`godot-signals-groups`** | Gevşek bağlı olay güdümlü tasarım: Düğümler arası doğrudan çapraz referans yerine `signal` ve `group` (`add_to_group`, `call_group`) kullanımı. | Sistemler arası iletişim, olay veri yolu, HUD-oynanış bağlantıları. |
+| **`godot-physics`** | 3B/2B fizik motoru (Jolt Physics): `CharacterBody3D`, `StaticBody3D`, `Area3D`, çarpışma katmanları/maskeleri, ışın takibi (`PhysicsRayQueryParameters3D`, `intersect_ray`), `move_and_slide`. | Çarpışma, zıplama/hareket fiziği, mermi ışını (raycast), siper ve engel kontrolleri. |
+| **`godot-3d-essentials`** | 3B uzamsal matematik: `Camera3D` izometrik açıları, `Basis`, `Transform3D`, ışıklandırma (`DirectionalLight3D`, `OmniLight3D`), `WorldEnvironment` filmik tonlama. | 3B kamera, dünya ışıklandırması, 3B yönlenme/rotasyon ve mesafe hesaplamaları. |
+| **`godot-ui-control`** | `Control` düğüm hiyerarşisi: `CanvasLayer`, anchor preset'leri (`PRESET_FULL_RECT` vb.), konteynerler (`VBoxContainer`, `HBoxContainer`), tema geçersiz kılmaları (`add_theme_*_override`), fare filtresi (`mouse_filter`). | HUD tasarımı, nişangah, can/şarjör barları, menü ve arayüz etiketleri. |
+| **`godot-animation`** | Prosedürel ve anahtar kare animasyonu: `Tween` ile akıcı geçişler (`create_tween()`), esneme ve sıkışma (squash & stretch), tepme, lunge ve zıplama pozları. | Karakter kalkış/iniş pozu, silah geri tepmesi, şarjör değiştirme eğimi, darbe animasyonları. |
+| **`godot-shaders`** | Godot Shading Language: `spatial` ve `canvas_item` gölgelendiricileri, vertex deformasyonu, parıltı (emission), alfa şeffaflığı ve renk geçişleri. | Enerji kalkanı görseli, lazer efektleri, darbe flaşları, sis ve anomali materyalleri. |
+| **`godot-resources`** | Veri odaklı tasarım (Data-Driven Design): Özel `Resource` sınıfları (`class_name ... extends Resource`), `.tres` dosyaları, oyun mantığı ile ayar verilerini ayrıştırma. | Silah profilleri, rol ayarları, eşya verileri, hareket katsayıları (`MovementTuning`). |
+| **`godot-audio`** | Ses mimarisi: `AudioStreamPlayer`, ses veri yolları (buses), sentetik ses üretimi (`AudioStreamWAV`), desibel (dB) yönetimi ve ses önceliklendirme. | Atış patlaması, sürgü mekaniği, vuruş onay tonu, alarm sirenleri. |
+| **`godot-multiplayer`** | Çok oyunculu ağ altyapısı (Faz 2 Hazırlığı): `ENetMultiplayerPeer`, `MultiplayerAPI`, `@rpc("authority", "call_local")`, `MultiplayerSpawner`, `MultiplayerSynchronizer`, sunucu otoritesi. | Çok oyunculu lobi, istemci-sunucu senkronizasyonu, ağ paketleri ve eşzamanlama. |
+| **`godot-gdscript-headless-testing`** | Otomasyon ve test koşusu: `godot --headless --script`, `SceneTree` test çatısı, deterministik assertion kontrolleri, sıfır sızıntı ile çıkış kodları (`quit(0/1)`). | Test yazımı, CI/CD doğrulaması, `runner.py test` kontrolleri. |
+| **`godot-export`** | Paketleme ve dağıtım: Dışa aktarma şablonları (Windows, Linux, macOS), headless CLI derlemeleri, release optimizasyonu. | Sürümleme, oyunun exe olarak paketlenmesi, dağıtım hazırlığı. |
+
+---
+
+### B. Oyun Hissiyatı ve Taktiksel Disiplin Yetenekleri (Disciplines)
+
+| Disiplin | Standart ve Uygulama Kuralları | Otomatik Devreye Girme Durumu |
+| :--- | :--- | :--- |
+| **`game-feel` (Juice)** | Vuruş mikro-donması (hit-stop 0.045s), kamera sarsıntısı (trauma decay), yönlü seken kıvılcımlar (ricochets), kalıcı mermi izleri (decals), düşman sendeletme (flinch). | Vuruş tokluğu, çarpışma hissi, silah tatmini, vuruş geri bildirimi geliştirme istekleri. |
+| **`game-ai` (Düşman Zekası)** | Deterministik durum makineleri (FSM), 110° görüş konisi (LOS raycast), akustik işitme yarıçapı, 0–100 şüphe birikimi/sönümü, arama ve dönüş döngüleri. | Düşman davranışı, kovalama, devriye, gizlilik/fark etme mekanikleri. |
+| **`input-systems` (Girdi Mimarisi)** | `ClickRouter` ile tekil eylem ayrımı, basılı tutma (hold) vs tıklama (tap) zamanlaması, etkileşim önceliği, pencere odağı ve duraklatma koruması. | Tuş atamaları, fare tıklama mantığı, basılı tutma / aç-kapa (hold-toggle) ayarları. |
+| **`camera-systems` (Kamera)** | Üstel yumuşak takip (`smooth_follow`), fare kenar kaydırması (edge pan), merkezleme kilidi (C), iniş çökmesi (landing dip) ve sarsıntı sönümlenmesi. | Kamera açısı, takip yumuşaklığı, ekran titremesi ve görsel perspektif talepleri. |
+| **`inventory-systems` & `save-systems`** | Slot tabanlı çanta mimarisi, istifleme sınırları (`max_stack`), tohum (seed) determinizmi, tekil ödül garantisi (idempotent loot). | Envanter, eşya alma/bırakma, kasalar, tohumlu bölüm üretimi. |
+

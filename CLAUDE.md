@@ -13,14 +13,15 @@ This project adheres to the universal vendor-neutral AI lifecycle and multi-agen
 
 ## Technology Stack
 
-- **Engine**: [CHOOSE: Godot 4 / Unity / Unreal Engine 5]
-- **Language**: [CHOOSE: GDScript / C# / C++ / Blueprint]
+- **Engine**: Godot 4.7.2 Stable (Forward+ / Jolt Physics)
+- **Language**: GDScript (Strict Static Typing, `@export`, Signal Contracts)
+- **Multiplayer**: High-Level Multiplayer (`ENetMultiplayerPeer`, Server-Authoritative)
 - **Version Control**: Git with trunk-based development
-- **Build System**: [SPECIFY after choosing engine]
-- **Asset Pipeline**: [SPECIFY after choosing engine]
+- **Test Runner**: Headless Engine Testing (`python -B tools/sdlc/runner.py test`)
+- **Automated Godot Skills Router**: `@AGENTS.md#7-godot-47-otomatik-yetenek-ve-uzmanlik-katalogu`
 
-> **Note**: Engine-specialist agents exist for Godot, Unity, and Unreal with
-> dedicated sub-specialists. Use the set matching your engine.
+> **Note**: Engine-specialist agents for Godot 4.7 automatically auto-load matching
+> skills based on task context without requiring manual user dispatch.
 
 ## Project Structure
 

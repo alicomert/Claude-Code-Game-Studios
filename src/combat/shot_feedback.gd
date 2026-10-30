@@ -93,11 +93,19 @@ func play_tone(hz: float, impact := false) -> void:
 	var key := "%s:%s" % [hz, impact]
 	if not _tones.has(key):
 		var data := PackedByteArray()
-		var count := 3000
+		var count := 1600 if impact else 3200
 		for sample in range(count):
-			var envelope: float = pow(1.0 - float(sample) / count, 3.0)
-			var value: float = sin(TAU * hz * sample / 22050.0) * envelope
-			data.append(int(value * 100) & 255)
+			var t: float = float(sample) / float(count)
+			var envelope: float = pow(1.0 - t, 4.0 if impact else 2.5)
+			var wave: float = sin(TAU * hz * sample / 22050.0)
+			# Shotgun low-end blast noise
+			if hz <= 90.0:
+				wave = wave * 0.7 + randf_range(-0.3, 0.3)
+			# Shock electric harmonic
+			elif hz >= 400.0 and not impact:
+				wave = wave * 0.65 + sin(TAU * hz * 2.5 * sample / 22050.0) * 0.35
+			var value: float = clampf(wave * envelope, -1.0, 1.0)
+			data.append(int(value * 120.0) & 255)
 		var stream := AudioStreamWAV.new()
 		stream.format = AudioStreamWAV.FORMAT_8_BITS
 		stream.mix_rate = 22050

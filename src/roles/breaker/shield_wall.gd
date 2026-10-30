@@ -33,13 +33,21 @@ func _ready() -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(2.4, 1.6, 0.15)
 	_visual.mesh = mesh
-	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = SHIELD_COLOR
-	mat.emission_enabled = true
-	mat.emission = Color("2080ff")
-	mat.emission_energy_multiplier = 1.2
-	_visual.material_override = mat
+	var shader = load("res://assets/shaders/shield_energy.gdshader")
+	if shader != null:
+		var smat := ShaderMaterial.new()
+		smat.shader = shader
+		smat.set_shader_parameter("shield_color", Color(0.2, 0.65, 1.0, 0.75))
+		smat.set_shader_parameter("rim_color", Color(0.5, 0.85, 1.0, 1.0))
+		_visual.material_override = smat
+	else:
+		var mat := StandardMaterial3D.new()
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.albedo_color = SHIELD_COLOR
+		mat.emission_enabled = true
+		mat.emission = Color("2080ff")
+		mat.emission_energy_multiplier = 1.2
+		_visual.material_override = mat
 	add_child(_visual)
 
 
@@ -48,8 +56,11 @@ func _process(delta: float) -> void:
 	_flash = maxf(_flash - delta, 0.0)
 
 	if is_instance_valid(_visual):
-		var mat: StandardMaterial3D = _visual.material_override
-		mat.albedo_color = HIT_COLOR if _flash > 0.0 else SHIELD_COLOR
+		if _visual.material_override is ShaderMaterial:
+			_visual.material_override.set_shader_parameter("hit_flash", clampf(_flash / 0.08, 0.0, 1.0))
+		elif _visual.material_override is StandardMaterial3D:
+			var mat: StandardMaterial3D = _visual.material_override
+			mat.albedo_color = HIT_COLOR if _flash > 0.0 else SHIELD_COLOR
 
 	if remaining_time <= 0.0 or health <= 0.0:
 		destroyed.emit()

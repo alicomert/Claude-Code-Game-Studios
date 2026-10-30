@@ -25,11 +25,18 @@ func _ready() -> void:
 	_beam_mesh.name = "LaserBeam"
 	_beam_mesh.mesh = _box
 
-	_mat = StandardMaterial3D.new()
-	_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_mat.albedo_color = current_color
-	_beam_mesh.material_override = _mat
+	var shader = load("res://assets/shaders/laser_beam.gdshader")
+	if shader != null:
+		var smat := ShaderMaterial.new()
+		smat.shader = shader
+		smat.set_shader_parameter("beam_color", current_color)
+		_beam_mesh.material_override = smat
+	else:
+		_mat = StandardMaterial3D.new()
+		_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_mat.albedo_color = current_color
+		_beam_mesh.material_override = _mat
 	add_child(_beam_mesh)
 
 	# Endpoint contact dot
@@ -58,8 +65,11 @@ func set_weapon_theme(weapon_index: int) -> void:
 		3: current_color = Color(0.25, 1.0, 0.45, 0.75) # Emerald Carbine
 		_: current_color = Color(1.0, 0.25, 0.25, 0.65)
 
-	if is_instance_valid(_mat):
-		_mat.albedo_color = current_color
+	if is_instance_valid(_beam_mesh):
+		if _beam_mesh.material_override is ShaderMaterial:
+			_beam_mesh.material_override.set_shader_parameter("beam_color", current_color)
+		elif _beam_mesh.material_override is StandardMaterial3D:
+			_beam_mesh.material_override.albedo_color = current_color
 	if is_instance_valid(_dot_mat):
 		_dot_mat.albedo_color = current_color
 
