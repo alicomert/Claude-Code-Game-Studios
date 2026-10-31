@@ -112,6 +112,27 @@ weapon_4={
 "events": [Object(InputEventKey,"device":0,"physical_keycode":52)]
 }
 
+role_cycle={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":0,"physical_keycode":4194333)]
+}
+ability_primary={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":0,"physical_keycode":81)]
+}
+ability_secondary={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":0,"physical_keycode":70)]
+}
+cargo_utility={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":0,"physical_keycode":66)]
+}
+cargo_drop={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":0,"physical_keycode":71)]
+}
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

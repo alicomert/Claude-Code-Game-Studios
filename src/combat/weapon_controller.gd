@@ -15,6 +15,7 @@ var profiles: Array = [
 	preload("res://assets/data/weapons/carbine.tres")]
 var selected := 0
 var excluded: Array[RID] = []
+var noise_multiplier: float = 1.0
 var _magazines: Dictionary = {}
 var _cooldown := 0.0
 var _bloom := 0.0
@@ -65,8 +66,15 @@ func fire_at(origin: Vector3, direction: Vector3, moving: bool) -> bool:
 		var ray: Vector3 = direction.normalized().rotated(Vector3.UP, yaw)
 		var finish: Vector3 = origin + ray * maxf(profile.distance, 0.0)
 		var query := PhysicsRayQueryParameters3D.create(origin, finish)
-		query.exclude = excluded
+		query.exclude = excluded.duplicate()
 		var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+		while not hit.is_empty() and hit.collider.has_method(&"blocks_shot"):
+			if hit.collider.blocks_shot(0):
+				break
+			var ignored: Array[RID] = query.exclude
+			ignored.append(hit.collider.get_rid())
+			query.exclude = ignored
+			hit = get_world_3d().direct_space_state.intersect_ray(query)
 		var damaged := false
 		if not hit.is_empty():
 			finish = hit.position
@@ -75,7 +83,7 @@ func fire_at(origin: Vector3, direction: Vector3, moving: bool) -> bool:
 				damaged = collider.receive_hit(profile.damage, 0, profile.stun_duration)
 		shot_traced.emit(origin, finish, damaged)
 	_bloom = minf(_bloom + profile.recoil_spread, 8.0)
-	noise_emitted.emit(origin, profile.noise_radius)
+	noise_emitted.emit(origin, profile.noise_radius * noise_multiplier)
 	return true
 
 ## Reset every magazine and spread/cadence while returning to the original pistol.

@@ -20,6 +20,8 @@ func set_candidate(target: Node3D, player_point: Vector3, clear_los: bool) -> vo
 		return
 	if candidate.completed:
 		reason = tr("Tamamlandı")
+	elif candidate.get("hack_only") == true:
+		reason = tr("Kilit: Q ile hackle")
 	elif player_point.distance_to(candidate.global_position) > reach:
 		reason = tr("Çok uzak")
 	elif not clear_los:

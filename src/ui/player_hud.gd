@@ -15,6 +15,7 @@ var _context: Label
 var _hit_marker: Label
 var _hit_age := 0.0
 var _reload: Label
+var _role: Label
 
 
 func _ready() -> void:
@@ -98,6 +99,17 @@ func _ready() -> void:
 	_reload.offset_right = -28.0
 	_reload.offset_top = -165.0
 	_reload.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_role = Label.new()
+	_role.name = "RoleStatus"
+	_role.add_theme_font_size_override(&"font_size", 16)
+	_role.add_theme_color_override(&"font_color", Color("66e0c2"))
+	_role.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_role)
+	_role.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_role.offset_left = -280.0
+	_role.offset_right = 280.0
+	_role.offset_top = -185.0
+	_role.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
 func _process(delta: float) -> void:
@@ -195,3 +207,8 @@ func _on_shield_changed(current: float, maximum: float) -> void:
 func _on_reload_changed(remaining: float) -> void:
 	_reload.text = tr("Şarjör değiştiriliyor") + " %.1f s" % remaining if remaining > 0.0 else ""
 	_reload.visible = remaining > 0.0
+
+
+## Present role/cooldown observations without owning ability state.
+func show_role(text: String) -> void:
+	_role.text = text

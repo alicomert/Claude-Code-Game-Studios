@@ -18,6 +18,12 @@ signal landed(impact_speed: float)
 var is_slow_walking: bool = false
 ## Last grounded world height (body origin); held at takeoff while airborne.
 var ground_anchor_y: float = 0.0
+## Ability channel lock blocks player commands while gravity/collision continue normally.
+var ability_locked: bool = false
+## Negative uses shared movement tuning; a role may reduce the slow-walk penalty.
+var role_walk_multiplier: float = -1.0
+## Carrying restrictions multiply speed without modifying shared tuning assets.
+var cargo_speed_multiplier: float = 1.0
 
 var _aim_direction: Vector3 = Vector3.FORWARD
 var _motion_velocity: Vector3 = Vector3.ZERO
@@ -38,7 +44,7 @@ func _physics_process(delta: float) -> void:
 	if tuning == null:
 		return
 	# Query current window focus; a startup cache can remain stale in embedded play.
-	var accepts_input: bool = get_window().has_focus()
+	var accepts_input: bool = get_window().has_focus() and not ability_locked
 	var input_axis: Vector2 = Vector2.ZERO
 	var slow: bool = false
 	var wants_jump: bool = false
@@ -85,6 +91,7 @@ func reset_to(point: Vector3) -> void:
 	_floor_contact_invalidated = true
 	_was_airborne = false
 	_jump_input_held = false
+	ability_locked = false
 	_motion_velocity = Vector3.ZERO
 	is_slow_walking = false
 	_aim_direction = Vector3.FORWARD
@@ -105,9 +112,10 @@ func simulate_motion(input_axis: Vector2, slow: bool, delta: float) -> void:
 	if is_instance_valid(camera):
 		camera_basis = camera.global_basis if camera.is_inside_tree() else camera.basis
 	var direction: Vector3 = horizontal_input_direction(input_axis, camera_basis)
-	var speed: float = maxf(tuning.move_speed, 0.0)
+	var speed: float = maxf(tuning.move_speed, 0.0) * clampf(cargo_speed_multiplier, 0.0, 1.0)
 	if slow:
-		speed *= clampf(tuning.walk_multiplier, 0.0, 1.0)
+		var factor: float = role_walk_multiplier if role_walk_multiplier >= 0.0 else tuning.walk_multiplier
+		speed *= clampf(factor, 0.0, 1.0)
 	var rate: float = tuning.deceleration if direction.is_zero_approx() else tuning.acceleration
 	_motion_velocity = _motion_velocity.move_toward(direction * speed, maxf(rate, 0.0) * delta)
 	velocity.x = _motion_velocity.x
