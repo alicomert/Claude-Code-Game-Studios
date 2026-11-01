@@ -19,7 +19,7 @@
       "owner": "alicomert",
       "title": "Okan rol/yuk secici entegrasyonu",
       "priority": 170,
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "P1-I02",
         "P1-O01",
@@ -59,7 +59,9 @@
         "Genel dash kaldirilir; UID referanslari tutarli; conflict marker kalmaz.",
         "Otomatik testler ve eksik kalan gorsel testler durustce raporlanir; commit/push yok."
       ],
-      "evidence": [],
+      "evidence": [
+        "production/qa/okan-integration.md"
+      ],
       "issue_url": null,
       "roles": [
         "lead-programmer",

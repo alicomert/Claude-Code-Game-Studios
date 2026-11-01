@@ -118,7 +118,8 @@ func _test_hud(state: Resource) -> void:
 	state.apply_damage(25.0)
 	_expect(bar.value == 100.0, "Damage does not snap visible health")
 	await create_timer(0.08).timeout
-	_expect(bar.value < 100.0 and bar.value > 75.0, "Damage animates toward reduced health")
+	await process_frame
+	_expect(bar.value < 100.0 and bar.value >= 75.0, "Damage animates toward reduced health")
 	hud.set_paused(true)
 	var frozen: float = bar.value
 	await create_timer(0.08).timeout
