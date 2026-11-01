@@ -30,6 +30,7 @@ production/session-state/
 # repository.
 .claude/worktrees/
 .cindy-worktrees/
+.worktrees/
 .agents/
 .codex/
 Yillik_Izin_Dilekcesi.*
