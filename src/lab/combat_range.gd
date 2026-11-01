@@ -10,6 +10,7 @@ const CrateScript = preload("res://src/loot/loot_crate.gd")
 const HazardObstacleScript = preload("res://src/world/obstacles/hazard_obstacle.gd")
 
 signal enemy_attacked(amount: float)
+const Electrical = preload("res://src/roles/electrical_device.gd")
 
 var targets: Array[Node3D] = []
 var stations: Array[Node3D] = []
@@ -21,6 +22,9 @@ var terminal: Node3D
 var door: Node3D
 var shield_station: Node3D
 var hazard: Area3D
+var electrical_devices: Array[Node3D] = []
+var role_stations: Array[Node3D] = []
+var electrical_panel: Node3D
 
 func _ready() -> void:
 	for index in range(3):
@@ -80,6 +84,8 @@ func _ready() -> void:
 	mesh.material_override = mat
 	hazard.add_child(mesh)
 	add_child(hazard)
+	_build_role_samples()
+	_build_breaker_samples()
 
 func _cover(title: String, size: Vector3, point: Vector3, breaks: bool) -> void:
 	var cover = Prop.new()
@@ -131,12 +137,16 @@ func reset_range() -> void:
 		loot_crate.reset_crate()
 	if is_instance_valid(laser_corridor) and laser_corridor.has_method(&"reset_hazard"):
 		laser_corridor.reset_hazard()
+	for device in electrical_devices:
+		device.reset_target()
 
 ## Find a station under the cursor, then check body-to-station line of sight separately.
 func pick_station(camera: Camera3D, mouse: Vector2) -> Node3D:
 	var best: Node3D
 	var best_score := INF
 	for station in stations:
+		if station in role_stations:
+			continue
 		if camera.is_position_behind(station.global_position):
 			continue
 		var distance: float = camera.unproject_position(station.global_position).distance_to(mouse)
@@ -152,3 +162,73 @@ func clear_sight(player: CharacterBody3D, station: Node3D) -> bool:
 	query.exclude = [player.get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(query)
 	return hit.is_empty() or hit.collider == station
+
+
+func _build_role_samples() -> void:
+	var role_terminal = _station("Hack terminali", "terminal", Vector3(7, 0.5, 10), 3.0)
+	role_terminal.hack_only = true
+	role_terminal.name = "RoleTerminal"
+	role_stations.append(role_terminal)
+	var role_door = _station("Hack kapısı", "door", Vector3(11, 1.1, 10), 3.0)
+	role_door.hack_only = true
+	role_stations.append(role_door)
+	role_terminal.activated.connect(role_door.activate)
+	for sample in [
+		["Güvenlik kamerası", "camera", Vector3(8, 1.2, 12)],
+		["Elektrik paneli", "panel", Vector3(-10, 0.5, 8)]]:
+		var device = Electrical.new()
+		device.display_name = sample[0]
+		device.kind = sample[1]
+		device.position = sample[2]
+		add_child(device)
+		electrical_devices.append(device)
+		if device.kind == "panel":
+			electrical_panel = device
+
+
+## Separate Q target set: ordinary E targets retain their existing behavior.
+func pick_hack_target(camera: Camera3D, mouse: Vector2) -> Node3D:
+	var best: Node3D
+	var nearest := 65.0
+	var candidates: Array = [terminal, door]
+	candidates.append_array(role_stations)
+	candidates.append_array(electrical_devices)
+	for target in candidates:
+		if not target.can_hack() or camera.is_position_behind(target.global_position):
+			continue
+		var distance: float = camera.unproject_position(target.global_position).distance_to(mouse)
+		if distance < nearest:
+			nearest = distance
+			best = target
+	return best
+
+
+## Pause is handled by the lab, which calls this only during active gameplay.
+func advance_devices(delta: float, player_point: Vector3, reveal_reach: float) -> void:
+	for device in electrical_devices:
+		device.advance(delta)
+		device.set_revealed(reveal_reach > 0.0 and player_point.distance_to(device.global_position) <= reveal_reach)
+	for station in role_stations:
+		station.set_role_revealed(reveal_reach > 0.0 and player_point.distance_to(station.global_position) <= reveal_reach)
+
+
+func _build_breaker_samples() -> void:
+	var door_sample = Prop.new()
+	door_sample.name = "BreakableDoor"
+	door_sample.display_name = "Kırılabilir kapı"
+	door_sample.dimensions = Vector3(1.8, 2.0, 0.3)
+	door_sample.position = Vector3(-6, 1.0, 10)
+	door_sample.max_health = 80.0
+	door_sample.breakable = true
+	door_sample.tint = Color("ad8463")
+	add_child(door_sample)
+	targets.append(door_sample)
+	var push_sample = Prop.new()
+	push_sample.name = "PushTarget"
+	push_sample.display_name = "İtme hedefi"
+	push_sample.position = Vector3(-3, 0.75, 10)
+	push_sample.max_health = 500.0
+	push_sample.pushable = true
+	push_sample.tint = Color("c4a777")
+	add_child(push_sample)
+	targets.append(push_sample)

@@ -15,7 +15,7 @@ func _initialize() -> void:
 	_test_camera_relative_input_uses_ground_basis()
 	_test_acceleration_and_deceleration_are_bounded()
 	_test_slow_walk_uses_tuning_multiplier()
-	_test_dash_motion_and_cooldown()
+	_test_role_cargo_motion()
 	_test_zero_delta_does_not_change_state()
 	_test_reset_clears_motion_and_restores_facing()
 	_test_focus_loss_cancels_horizontal_motion()
@@ -141,19 +141,15 @@ func _test_slow_walk_uses_tuning_multiplier() -> void:
 	player.free()
 
 
-func _test_dash_motion_and_cooldown() -> void:
+func _test_role_cargo_motion() -> void:
 	var player: PlayerScript = _make_player()
-	player.simulate_motion(Vector2.RIGHT, false, 0.05, true)
-	_expect_float(player.velocity.x, player.tuning.dash_speed, "Dash reaches tuned speed")
-	_expect(player.dash_remaining > 0.0, "Dash is active")
-	player.simulate_motion(Vector2.RIGHT, false, 0.20, false)
-	_expect(player.dash_remaining <= 0.0, "Dash expires after duration")
-	_expect(player.dash_cooldown_remaining > 0.0, "Dash cooldown is active")
-	player.simulate_motion(Vector2.RIGHT, false, 0.05, true)
-	_expect(player.dash_remaining <= 0.0, "Dash during cooldown is rejected")
-	player.reset_to(Vector3.ZERO)
-	_expect_float(player.dash_remaining, 0.0, "Reset clears dash remaining")
-	_expect_float(player.dash_cooldown_remaining, 0.0, "Reset clears dash cooldown")
+	_expect(not InputMap.has_action(&"dash"), "General dash is not bound")
+	player.cargo_speed_multiplier = 0.5
+	player.simulate_motion(Vector2.RIGHT, false, 1.0)
+	_expect_float(player.velocity.x, player.tuning.move_speed * 0.5, "Cargo reduces movement speed")
+	player.role_walk_multiplier = 0.7
+	player.simulate_motion(Vector2.RIGHT, true, 1.0)
+	_expect_float(player.velocity.x, player.tuning.move_speed * 0.5 * 0.7, "Role and cargo multipliers compose")
 	player.free()
 
 

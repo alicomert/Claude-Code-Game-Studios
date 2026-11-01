@@ -14,19 +14,19 @@ signal landed(impact_speed: float)
 @export var tuning: TuningScript
 @export var camera: Camera3D
 
-## Seconds left in the active dash; zero when inactive.
-var dash_remaining: float = 0.0
-## Seconds until another dash may begin, counted from the last activation.
-var dash_cooldown_remaining: float = 0.0
 ## True only while moving slowly.
 var is_slow_walking: bool = false
 ## Last grounded world height (body origin); held at takeoff while airborne.
 var ground_anchor_y: float = 0.0
+## Ability channel lock blocks player commands while gravity/collision continue normally.
+var ability_locked: bool = false
+## Negative uses shared movement tuning; a role may reduce the slow-walk penalty.
+var role_walk_multiplier: float = -1.0
+## Carrying restrictions multiply speed without modifying shared tuning assets.
+var cargo_speed_multiplier: float = 1.0
 
 var _aim_direction: Vector3 = Vector3.FORWARD
-var _dash_direction: Vector3 = Vector3.FORWARD
 var _motion_velocity: Vector3 = Vector3.ZERO
-var _dash_step_applied: bool = false
 var _floor_contact_invalidated: bool = true
 var _was_airborne: bool = false
 var _jump_input_held: bool = false
@@ -44,15 +44,13 @@ func _physics_process(delta: float) -> void:
 	if tuning == null:
 		return
 	# Query current window focus; a startup cache can remain stale in embedded play.
-	var accepts_input: bool = get_window().has_focus()
+	var accepts_input: bool = get_window().has_focus() and not ability_locked
 	var input_axis: Vector2 = Vector2.ZERO
 	var slow: bool = false
-	var wants_dash: bool = false
 	var wants_jump: bool = false
 	if accepts_input:
 		input_axis = Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back")
 		slow = Input.is_action_pressed(&"slow_walk")
-		wants_dash = Input.is_action_just_pressed(&"dash")
 		wants_jump = Input.is_action_pressed(&"jump")
 		_update_aim(delta)
 	else:
@@ -60,7 +58,7 @@ func _physics_process(delta: float) -> void:
 	var grounded_before_step: bool = not _floor_contact_invalidated and is_on_floor()
 	if grounded_before_step:
 		ground_anchor_y = global_position.y
-	simulate_motion(input_axis, slow, delta, wants_dash)
+	simulate_motion(input_axis, slow, delta)
 	if simulate_vertical_motion(wants_jump, grounded_before_step, delta):
 		jumped.emit()
 	var impact_speed: float = maxf(-velocity.y, 0.0)
@@ -73,8 +71,7 @@ func _physics_process(delta: float) -> void:
 			landed.emit(impact_speed)
 	_was_airborne = not grounded_after_step
 	# Retain collision resolution instead of accumulating speed behind a wall.
-	if not _dash_step_applied:
-		_motion_velocity = Vector3(velocity.x, 0.0, velocity.z)
+	_motion_velocity = Vector3(velocity.x, 0.0, velocity.z)
 
 
 func _notification(what: int) -> void:
@@ -94,13 +91,10 @@ func reset_to(point: Vector3) -> void:
 	_floor_contact_invalidated = true
 	_was_airborne = false
 	_jump_input_held = false
+	ability_locked = false
 	_motion_velocity = Vector3.ZERO
-	_dash_step_applied = false
-	dash_remaining = 0.0
-	dash_cooldown_remaining = 0.0
 	is_slow_walking = false
 	_aim_direction = Vector3.FORWARD
-	_dash_direction = Vector3.FORWARD
 	if is_inside_tree():
 		global_rotation = Vector3.ZERO
 	else:
@@ -109,42 +103,24 @@ func reset_to(point: Vector3) -> void:
 		reset_physics_interpolation()
 
 
-## Update horizontal velocity and dash state without input polling or movement; vertical speed is untouched.
+## Update horizontal velocity without input polling or movement; vertical speed is untouched.
 ## Inject tuning before calling. Optional camera sets the horizontal movement basis.
-func simulate_motion(input_axis: Vector2, slow: bool, delta: float, wants_dash: bool = false) -> void:
+func simulate_motion(input_axis: Vector2, slow: bool, delta: float) -> void:
 	if tuning == null or delta <= 0.0:
 		return
 	var camera_basis: Basis = Basis.IDENTITY
 	if is_instance_valid(camera):
 		camera_basis = camera.global_basis if camera.is_inside_tree() else camera.basis
 	var direction: Vector3 = horizontal_input_direction(input_axis, camera_basis)
-	if wants_dash and dash_remaining <= 0.0 and dash_cooldown_remaining <= 0.0:
-		if tuning.dash_duration > 0.0 and tuning.dash_speed > 0.0:
-			_dash_direction = direction.normalized() if not direction.is_zero_approx() else _aim_direction
-			if _dash_direction.is_zero_approx():
-				_dash_direction = Vector3.FORWARD
-			dash_remaining = maxf(tuning.dash_duration, 0.0)
-			dash_cooldown_remaining = maxf(tuning.dash_cooldown, 0.0)
-			_motion_velocity = Vector3.ZERO
-	var dash_step: float = minf(dash_remaining, delta)
-	_dash_step_applied = dash_step > 0.0
-	var normal_step: float = maxf(delta - dash_step, 0.0)
-	var normal_speed: float = maxf(tuning.move_speed, 0.0)
+	var speed: float = maxf(tuning.move_speed, 0.0) * clampf(cargo_speed_multiplier, 0.0, 1.0)
 	if slow:
-		normal_speed *= clampf(tuning.walk_multiplier, 0.0, 1.0)
-	var desired: Vector3 = direction * normal_speed
-	if normal_step > 0.0:
-		var rate: float = tuning.deceleration if direction.is_zero_approx() else tuning.acceleration
-		_motion_velocity = _motion_velocity.move_toward(desired, maxf(rate, 0.0) * normal_step)
-	var horizontal: Vector3 = (
-		_dash_direction * maxf(tuning.dash_speed, 0.0) * dash_step
-		+ _motion_velocity * normal_step
-	) / delta
-	velocity.x = horizontal.x
-	velocity.z = horizontal.z
-	dash_remaining = maxf(dash_remaining - delta, 0.0)
-	dash_cooldown_remaining = maxf(dash_cooldown_remaining - delta, 0.0)
-	is_slow_walking = slow and not direction.is_zero_approx() and dash_step <= 0.0
+		var factor: float = role_walk_multiplier if role_walk_multiplier >= 0.0 else tuning.walk_multiplier
+		speed *= clampf(factor, 0.0, 1.0)
+	var rate: float = tuning.deceleration if direction.is_zero_approx() else tuning.acceleration
+	_motion_velocity = _motion_velocity.move_toward(direction * speed, maxf(rate, 0.0) * delta)
+	velocity.x = _motion_velocity.x
+	velocity.z = _motion_velocity.z
+	is_slow_walking = slow and not direction.is_zero_approx()
 
 
 ## Update only vertical velocity without input, scene queries, movement, or signals.
@@ -155,7 +131,7 @@ func simulate_vertical_motion(wants_jump: bool, grounded: bool, delta: float) ->
 		return false
 	var rising_edge: bool = wants_jump and not _jump_input_held
 	_jump_input_held = wants_jump
-	if rising_edge and grounded and dash_remaining <= 0.0 and not _dash_step_applied:
+	if rising_edge and grounded:
 		if tuning.jump_height > 0.0 and tuning.gravity > 0.0:
 			velocity.y = sqrt(2.0 * tuning.gravity * tuning.jump_height)
 			return true
@@ -244,7 +220,6 @@ func _update_aim(delta: float) -> void:
 
 
 func _cancel_horizontal_motion() -> void:
-	dash_remaining = 0.0
 	_motion_velocity = Vector3.ZERO
 	velocity.x = 0.0
 	velocity.z = 0.0

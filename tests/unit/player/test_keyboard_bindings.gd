@@ -9,7 +9,11 @@ func _initialize() -> void:
 		&"move_forward": KEY_W,
 		&"move_back": KEY_S,
 		&"jump": KEY_SPACE,
-		&"dash": KEY_SHIFT,
+		&"role_cycle": KEY_F2,
+		&"ability_primary": KEY_Q,
+		&"ability_secondary": KEY_F,
+		&"cargo_utility": KEY_B,
+		&"cargo_drop": KEY_G,
 		&"slow_walk": KEY_CTRL,
 		&"reload": KEY_R,
 	}

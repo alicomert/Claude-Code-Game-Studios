@@ -22,6 +22,8 @@ const GameplayHooksScript = preload("res://src/gameplay/gameplay_hooks.gd")
 const CombatJuiceHookScript = preload("res://src/gameplay/combat_juice_hook.gd")
 const DirectorPacingHookScript = preload("res://src/gameplay/director_pacing_hook.gd")
 const LabRules = preload("res://assets/data/lab_rules.tres")
+const RoleScript = preload("res://src/roles/role_controller.gd")
+const CargoScript = preload("res://src/roles/cargo_controller.gd")
 const SPAWN := Vector3(0.0, 0.75, 5.0)
 const FLOOR_COLOR := Color("172333")
 const LINE_COLOR := Color("304455")
@@ -40,10 +42,12 @@ var combat: CombatScript
 var weapon: WeaponScript
 var interaction: InteractionScript
 var combat_range: RangeScript
+var roles: RoleScript
+var cargo: CargoScript
 var _feedback: FeedbackScript
 var breaker_role: Node
 var scout_role: Node
-var active_role_id := "breaker"
+var active_role_id := "operator"
 var recovery: RefCounted
 var helper_bot: Node3D
 var combo_manager: RefCounted
@@ -140,7 +144,7 @@ func _ready() -> void:
 
 	laser_sight = LaserSightScript.new()
 	laser_sight.name = "TacticalLaser"
-	laser_sight.excluded_rids = [_player.get_rid()]
+	laser_sight.excluded_rids.assign([_player.get_rid()])
 	add_child(laser_sight)
 	weapon.weapon_changed.connect(func(_p): laser_sight.set_weapon_theme(weapon.selected))
 	var arguments := OS.get_cmdline_user_args()
@@ -154,7 +158,7 @@ func _ready() -> void:
 		_build_showcase_hud()
 	if _verification or _verify_jump:
 		get_window().grab_focus()
-	print("SECTOR9 LAB | WASD / Shift dash / Space jump / Ctrl slow walk / Left click fire / R reload / C / F5 / Esc")
+	print("SECTOR9 LAB | WASD / Space jump / Ctrl slow walk / Left click fire / R reload / C / F5 / Esc")
 
 
 func _process(delta: float) -> void:
@@ -187,22 +191,6 @@ func _process(delta: float) -> void:
 
 		combat.advance(delta)
 		weapon.advance(delta)
-		if breaker_role != null and breaker_role.is_bashing:
-			breaker_role.step_bash(_player, delta)
-		if Input.is_physical_key_pressed(KEY_5):
-			active_role_id = "breaker"
-		elif Input.is_physical_key_pressed(KEY_6):
-			active_role_id = "scout"
-		if Input.is_physical_key_pressed(KEY_Q):
-			if active_role_id == "breaker":
-				breaker_role.try_shoulder_bash(_player)
-			elif active_role_id == "scout":
-				scout_role.toggle_drone(_player, self)
-		if Input.is_physical_key_pressed(KEY_F):
-			if active_role_id == "breaker":
-				breaker_role.try_deploy_shield(_player, self)
-			elif active_role_id == "scout":
-				scout_role.trigger_sonar_scan(_player.global_position, combat_range.enemies)
 		if combat_juice != null:
 			combat_juice.advance(delta)
 		if director_pacing != null:
@@ -210,6 +198,8 @@ func _process(delta: float) -> void:
 			var max_a: float = maxf(float(combat.magazine_capacity), 1.0)
 			director_pacing.advance(delta, combat.health / max_h, float(combat.ammo) / max_a)
 			director_pacing.check_and_trigger_director_event()
+		_update_cargo(delta)
+
 		_kick = maxf(_kick - delta, 0.0)
 		_camera.h_offset = sin(_kick * 120.0) * _kick if not _reduced_effects else 0.0
 		_update_lab_commands(delta)
@@ -227,8 +217,6 @@ func _process(delta: float) -> void:
 	var mode_text := tr("BEKLEME")
 	if not _player.is_on_floor():
 		mode_text = tr("YÜKSELİYOR") if _player.velocity.y > 0.0 else tr("İNİYOR")
-	elif _player.dash_remaining > 0.0:
-		mode_text = tr("ATILMA")
 	elif _player.velocity.length() > 0.1:
 		mode_text = tr("SESSİZ YÜRÜYÜŞ") if _player.is_slow_walking else tr("HAREKET")
 	_status.text = tr("%s  •  Konum: %.1f / %.1f") % [
@@ -297,7 +285,8 @@ func _check(condition: bool, description: String) -> void:
 
 ## Accept one shot only while gameplay can receive focused input.
 func try_fire() -> bool:
-	if _paused or (not _showcase_mode and not get_window().has_focus()):
+	if _paused or (not _showcase_mode and not get_window().has_focus()) or roles.is_hacking() or cargo.carrying_core() or cargo.aiming:
+
 		return false
 	var origin: Vector3 = _player.global_position + Vector3.UP * 0.86
 	var direction: Vector3
@@ -324,10 +313,29 @@ func try_fire() -> bool:
 	return accepted
 
 
+func _cargo_aim_point() -> Vector3:
+	var mouse := get_viewport().get_mouse_position()
+	var ray_origin := _camera.project_ray_origin(mouse)
+	var ray_direction := _camera.project_ray_normal(mouse)
+	if absf(ray_direction.y) > 0.000001:
+		var distance := (_player.global_position.y - ray_origin.y) / ray_direction.y
+		if distance >= 0.0:
+			return ray_origin + ray_direction * distance
+	return _player.global_position - _player.global_basis.z * 5.0
+
+
+func _update_cargo(delta: float) -> void:
+	cargo.advance(delta, _player, _cargo_aim_point())
+
+
+func _on_cargo_noise(_point: Vector3, radius: float) -> void:
+	_sample_status = tr("Yem sesi: %.1f m") % radius
+
+
 ## Refill seven rounds from the lab's unlimited supply while gameplay is active.
 ## Pressing reload during an active reload attempts a Synthetik-style active reload.
 func reload_weapon() -> bool:
-	if _paused or not get_window().has_focus() or combat.health <= 0.0 or combat.stun_remaining > 0.0:
+	if _paused or not get_window().has_focus() or combat.health <= 0.0 or combat.stun_remaining > 0.0 or roles.is_hacking():
 		return false
 	if combat.reload_remaining > 0.0:
 		return combat.attempt_active_reload()
@@ -344,6 +352,11 @@ func set_paused(value: bool) -> void:
 	_pause_label.visible = value
 	_feedback.set_paused(value)
 	interaction.cancel()
+	roles.cancel_hack()
+	scout_role.recall_active_drone()
+	scout_role.set_process(not value)
+	cargo.set_paused(value)
+	_player.ability_locked = false
 	for target in combat_range.targets:
 		target.set_process(not value)
 	_camera.h_offset = 0.0
@@ -352,6 +365,12 @@ func set_paused(value: bool) -> void:
 func _reset_lab() -> void:
 	combat.reset()
 	weapon.reset_weapon()
+	roles.reset_role()
+	cargo.reset_cargo()
+	cargo.set_paused(_paused)
+	_player.cargo_speed_multiplier = 1.0
+	if roles.current_profile().equipped_weapon >= 0:
+		weapon.select_weapon(roles.current_profile().equipped_weapon)
 	interaction.cancel()
 	combat_range.reset_range()
 	_feedback.reset_effects()
@@ -637,7 +656,8 @@ func _build_hud() -> void:
 	_combat_hud.name = "CombatHud"
 	root.add_child(_combat_hud)
 	_combat_hud.bind_state(combat)
-	var controls := _label(tr("WASD   Hareket\nFARE   Bakış yönü\nSOL TIK   Ateş\n1–4   Silah seç\n5/6   Rol seç (Kırıcı/Göz)\nQ/F   Rol yetenekleri\nR   Şarjör değiştir\nE   Etkileşim / Taşı\nT   Basılı tut / aç-kapa\nF6   Efekt azalt\nF7   Mermi test modu\nCTRL   Sessiz yürü\nSHIFT   Atıl\nSPACE   Zıpla\nC basılı   Kamerayı merkezle\nF5   Alanı sıfırla\nESC   Duraklat / devam"), 15, Color("e3eaf2"))
+	var controls := _label(tr("WASD   Hareket\nFARE   Bakış yönü\nSOL TIK   Ateş\n1–4   Silah seç\nF2   Rol seç • 6 Göz • 5 Operatör\nQ/F   Rol yetenekleri • B Duman/Yem • G Bırak\nR   Şarjör değiştir\nE   Etkileşim / Taşı\nT   Basılı tut / aç-kapa\nF6   Efekt azalt\nF7   Mermi test modu\nCTRL   Sessiz yürü\nSPACE   Zıpla\nC basılı   Kamerayı merkezle\nF5   Alanı sıfırla\nESC   Duraklat / devam"), 15, Color("e3eaf2"))
+
 	controls.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	controls.position = Vector2(-290, 24)
 	controls.size = Vector2(260, 205)
@@ -695,6 +715,16 @@ func _build_combat_range() -> void:
 		combat_range.door.activate()
 		_sample_status = tr("Terminal kapıyı açtı"))
 	combat.reserve_ammo = LabRules.limited_reserve if _limited_ammo else -1
+	roles = RoleScript.new()
+	add_child(roles)
+	cargo = CargoScript.new()
+	cargo.name = "CargoController"
+	add_child(cargo)
+	roles.role_changed.connect(_on_role_changed)
+	roles.fuse_cast.connect(_show_fuse_cone)
+	cargo.noise_emitted.connect(_on_cargo_noise)
+	combat.damaged.connect(_interrupt_role_on_damage)
+	_on_role_changed(roles.current_profile())
 
 
 func _update_lab_commands(delta: float) -> void:
@@ -702,20 +732,30 @@ func _update_lab_commands(delta: float) -> void:
 	var can_act: bool = focused and combat.health > 0.0 and combat.stun_remaining <= 0.0
 	_player.set_physics_process(combat.health > 0.0 and combat.stun_remaining <= 0.0)
 	_hazard_wait = maxf(_hazard_wait - delta, 0.0)
-	if combat_range.hazard.overlaps_body(_player) and _hazard_wait <= 0.0:
+	if combat_range.hazard.overlaps_body(_player) and _hazard_wait <= 0.0 and not combat_range.electrical_panel.is_disabled():
 		combat.apply_damage(LabRules.hazard_damage, 1)
 		combat.apply_stun(LabRules.hazard_stun)
 		_hazard_wait = LabRules.hazard_interval
 	if not can_act:
+		cargo.cancel_aim()
 		if not focused:
+			scout_role.recall_active_drone()
 			_player.velocity.x = 0.0
 			_player.velocity.z = 0.0
 		interaction.cancel()
+		roles.cancel_hack()
+		_player.ability_locked = false
+		_update_role_abilities(delta, false)
 		_combat_hud.show_context(tr("F5: yeniden başlat") if combat.health <= 0.0 else "")
+		return
+	_update_role_abilities(delta, true)
+	if roles.is_hacking():
+		interaction.cancel()
 		return
 	for index in range(4):
 		if Input.is_action_just_pressed(StringName("weapon_%d" % (index + 1))):
-			weapon.select_weapon(index)
+			if roles.current_profile().role_id == &"operator" or index == roles.current_profile().equipped_weapon:
+				weapon.select_weapon(index)
 	if Input.is_action_just_pressed(&"interaction_toggle"):
 		interaction.cancel()
 		interaction.toggle_mode = not interaction.toggle_mode
@@ -728,6 +768,12 @@ func _update_lab_commands(delta: float) -> void:
 		combat.reserve_ammo = LabRules.limited_reserve if _limited_ammo else -1
 	var candidate: Node3D = combat_range.pick_station(_camera, get_viewport().get_mouse_position())
 	var clear := candidate != null and combat_range.clear_sight(_player, candidate)
+	if roles.current_profile().role_id == &"yuk":
+		var cargo_item := cargo.pick_item(_player, _camera, get_viewport().get_mouse_position())
+		if is_instance_valid(cargo_item) and Input.is_action_just_pressed(&"interact"):
+			cargo.pickup(cargo_item)
+			candidate = null
+			clear = false
 	interaction.set_candidate(candidate, _player.global_position, clear)
 	interaction.step(Input.is_action_just_pressed(&"interact"), Input.is_action_pressed(&"interact"), delta)
 	var context := ""
@@ -907,13 +953,10 @@ func _process_showcase(delta: float) -> void:
 			if _showcase_frame == 225 and combat_range.enemies.size() > 0:
 				combat_range.enemies[0].receive_hit(100.0, 0)
 
-	# Segment 2: Clear Movement & Shift Dash (260-440 frames / 8.5-14.5s)
+	# Segment 2: Clear Movement (260-440 frames / 8.5-14.5s)
 	elif _showcase_frame < 440:
-		_set_showcase_text("[ BÖLÜM 2 / 10 ]", "02. TEMİZ SAHA HAREKETİ & ÇEVİK ATILMA", "Düşmanlar temizlendi; engelsiz sahada akıcı WASD hareketi ve Sol Shift ile 15 m/s atılma")
-		if _showcase_frame == 320:
-			_player.simulate_motion(Vector2(0, -1), false, delta, true)
-		else:
-			_player.simulate_motion(Vector2(0, -1), false, delta)
+		_set_showcase_text("[ BÖLÜM 2 / 10 ]", "02. TEMİZ SAHA HAREKETİ", "Düşmanlar temizlendi; engelsiz sahada akıcı WASD hareketi")
+		_player.simulate_motion(Vector2(0, -1), false, delta)
 
 	# Segment 3: Jumps over Hurdles (440-620 frames / 14.5-20.5s)
 	elif _showcase_frame < 620:
@@ -1005,3 +1048,106 @@ func _process_showcase(delta: float) -> void:
 		_set_showcase_text("[ FAZ 1 MÜHÜRLENDİ ]", "FAZ 1 TÜM TESTLER GEÇTİ & MÜHÜRLENDİ", "19 Görev, 29 Test Paketi, 572 Kontrol — %100 Başarı | Faz 2'ye Hazır!")
 	else:
 		get_tree().quit(0)
+
+
+func _update_role_abilities(delta: float, accepts_input: bool) -> void:
+	if accepts_input:
+		if Input.is_action_just_pressed(&"role_cycle"):
+			roles.select_role((roles.selected + 1) % RoleScript.PROFILES.size())
+		elif Input.is_physical_key_pressed(KEY_6):
+			roles.select_role(4)
+		elif Input.is_physical_key_pressed(KEY_5):
+			roles.select_role(0)
+	var profile: Resource = roles.current_profile()
+	var target: Node3D = combat_range.pick_hack_target(_camera, get_viewport().get_mouse_position())
+	var clear: bool = target != null and combat_range.clear_sight(_player, target)
+	if accepts_input:
+		var moving: bool = Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back").length_squared() > 0.0
+		if moving or Input.is_action_just_pressed(&"jump") or Input.is_action_just_pressed(&"interact"):
+			roles.cancel_hack(tr("Hack iptal: hareket"))
+		if Input.is_action_just_pressed(&"ability_primary"):
+			if profile.role_id == &"scout":
+				scout_role.toggle_drone(_player, self)
+			elif profile.role_id == &"yuk":
+				cargo.begin_aim()
+			elif profile.role_id == &"kirici":
+				roles.strike(_player, -_player.global_basis.z)
+			elif roles.is_hacking():
+				roles.cancel_hack(tr("Hack iptal"))
+			elif not moving:
+				roles.begin_hack(target, _player, clear)
+		if profile.role_id == &"yuk" and cargo.aiming and not Input.is_action_pressed(&"ability_primary"):
+			cargo.throw_item(_player, _cargo_aim_point())
+		if Input.is_action_just_pressed(&"cargo_utility") and profile.role_id == &"yuk":
+			cargo.toggle_utility()
+		if Input.is_action_just_pressed(&"cargo_drop") and profile.role_id == &"yuk":
+			cargo.drop_item(_player)
+		if Input.is_action_just_pressed(&"ability_secondary"):
+			if profile.role_id == &"scout":
+				scout_role.trigger_sonar_scan(_player.global_position, combat_range.enemies)
+			elif profile.role_id == &"kirici":
+				roles.deploy_shield(_player, -_player.global_basis.z)
+			elif profile.role_id == &"yuk":
+				cargo.use_utility(_player, _cargo_aim_point())
+			else:
+				roles.cast_fuse(_player, -_player.global_basis.z, combat_range.electrical_devices, combat_range.targets)
+	roles.advance(delta, _player, target, clear)
+	if roles.is_hacking():
+		_player.velocity.x = 0.0
+		_player.velocity.z = 0.0
+	_player.ability_locked = roles.is_hacking()
+	var reveal: float = profile.cable_sight_reach if profile.role_id == &"kilit" else 0.0
+	combat_range.advance_devices(delta, _player.global_position, reveal)
+	var text: String = tr(profile.display_name) + " • " + tr("F2: rol seç")
+	if profile.role_id == &"kilit":
+		text += "\n" + tr("Q: Hack") + " %.1f  |  " % roles.hack_cooldown_remaining \
+			+ tr("F: Sigorta Ağı") + " %.1f" % roles.fuse_cooldown_remaining
+		if roles.is_hacking():
+			text += "\n" + tr("Hack sürüyor") + " %d%%" % int(roles.hack_progress * 100.0)
+		elif not roles.message.is_empty():
+			text += "\n" + roles.message
+	elif profile.role_id == &"kirici":
+		text += "\n" + tr("Q: Kır/it") + " %.1f  |  " % roles.break_cooldown_remaining \
+			+ tr("F: Kalkan Duvarı") + " %.1f" % roles.shield_cooldown_remaining
+		if not roles.message.is_empty():
+			text += "\n" + roles.message
+	elif profile.role_id == &"yuk":
+		_player.cargo_speed_multiplier = profile.core_speed_multiplier if cargo.carrying_core() else 1.0
+		text += "\n" + tr("E: al  | Q: fırlat  | G: bırak  | F: %s") % tr(cargo.utility_mode)
+		text += "\n" + tr("Çanta: %d/%d  | Q %.1f  F %.1f") % [cargo.carried.size(), profile.cargo_capacity, cargo.throw_cooldown, cargo.utility_cooldown]
+		if not cargo.message.is_empty():
+			text += "\n" + cargo.message
+	_combat_hud.show_role(text)
+
+
+func _on_role_changed(profile: Resource) -> void:
+	scout_role.reset_role()
+	active_role_id = String(profile.role_id)
+	_player.ability_locked = false
+	_player.role_walk_multiplier = profile.slow_walk_factor
+	weapon.noise_multiplier = profile.shot_noise_multiplier
+	var ratio: float = combat.health / maxf(combat.max_health, 1.0)
+	combat.max_health = profile.max_health
+	combat.health = clampf(ratio * combat.max_health, 0.0, combat.max_health)
+	combat.health_changed.emit(combat.health, combat.max_health)
+	interaction.cancel()
+	cargo.set_role(profile)
+	_player.cargo_speed_multiplier = 1.0
+	if profile.equipped_weapon >= 0:
+		weapon.select_weapon(profile.equipped_weapon)
+	else:
+		weapon.select_weapon(0)
+
+
+func _interrupt_role_on_damage(_amount: float) -> void:
+	roles.cancel_hack(tr("Hack iptal: hasar"))
+	_player.ability_locked = false
+
+
+func _show_fuse_cone(origin: Vector3, direction: Vector3, reach: float, angle: float) -> void:
+	if _reduced_effects:
+		return
+	for index in range(7):
+		var yaw: float = deg_to_rad(-angle * 0.5 + angle * index / 6.0)
+		var start: Vector3 = origin + Vector3.DOWN * 0.65
+		_feedback.trace_shot(start, start + direction.rotated(Vector3.UP, yaw) * reach, false)

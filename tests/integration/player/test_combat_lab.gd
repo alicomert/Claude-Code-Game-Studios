@@ -13,6 +13,10 @@ func _initialize() -> void:
 func _run() -> void:
 	_lab = load("res://src/lab/mechanics_lab.tscn").instantiate()
 	root.add_child(_lab)
+	# Rehearse reload/input independently of pursuing bots killing the stationary player.
+	# Damage/HUD behavior is exercised explicitly below.
+	for enemy in _lab.combat_range.enemies:
+		enemy.set_physics_process(false)
 	root.grab_focus()
 	for index in range(30):
 		await process_frame
@@ -128,7 +132,7 @@ func _click(pressed: bool) -> void:
 
 func _capture(filename: String) -> void:
 	await RenderingServer.frame_post_draw
-	var directory := "res://production/qa/evidence"
+	var directory := "user://integration-evidence"
 	DirAccess.make_dir_recursive_absolute(directory)
 	var result := root.get_texture().get_image().save_png(directory.path_join(filename))
 	_expect(result == OK, "Screenshot saved: " + filename)

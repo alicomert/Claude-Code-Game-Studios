@@ -60,7 +60,7 @@ def validate_manifest(data, root=None):
     branches = set()
     for task in tasks:
         tid = task.get('id')
-        if not isinstance(tid, str) or not re.fullmatch(r'P1-[AOI][0-9]{2}', tid) or tid in index:
+        if not isinstance(tid, str) or not re.fullmatch(r'P[12]-[AOI][0-9]{2}', tid) or tid in index:
             raise ValueError('Gecersiz/tekrar gorev ID')
         if task.get('owner') not in data['developers']:
             raise ValueError('Bilinmeyen gorev sahibi: ' + tid)
@@ -79,7 +79,7 @@ def validate_manifest(data, root=None):
             raise ValueError('Kapsam/kabul/baslik gerekli: ' + tid)
         paths = [scope(p, root) for p in task['write_scopes']]
         if any(overlap(p, s) for p in paths for s in shared):
-            if task['owner'] != data['integration_owner'] or not tid.startswith('P1-I'):
+            if task['owner'] != data['integration_owner'] or not re.fullmatch(r'P[12]-I[0-9]{2}', tid):
                 raise ValueError('Ortak dosya yalniz entegrasyon gorevine verilir: ' + tid)
         if task['status'] == 'done' and (not task['evidence'] or task['open_questions']):
             raise ValueError('Kanit olmadan done yasak: ' + tid)
@@ -101,13 +101,44 @@ def validate_manifest(data, root=None):
         visited.add(tid)
     for tid in index:
         visit(tid)
-    # Static ownership cannot permit cross-developer scope overlap, even in future tasks.
+    # Explicit integration handoffs preserve historical ownership; never waive live work.
+    handoffs = data.get('integration_handoffs', [])
+    if not isinstance(handoffs, list):
+        raise ValueError('Gecersiz entegrasyon devirleri')
+    authorized = set()
+    for handoff in handoffs:
+        if not isinstance(handoff, dict):
+            raise ValueError('Gecersiz devir kaydi')
+        source = index.get(handoff.get('from_task'))
+        target = index.get(handoff.get('to_task'))
+        paths = handoff.get('scopes')
+        if (not source or not target or source['status'] != 'done'
+                or target['owner'] != data['integration_owner']
+                or not re.fullmatch(r'P2-I[0-9]{2}', target['id'])
+                or source['owner'] == target['owner']
+                or source['id'] not in target['depends_on']
+                or not handoff.get('reason') or not isinstance(paths, list) or not paths):
+            raise ValueError('Gecersiz entegrasyon devri')
+        for path in paths:
+            normalized = scope(path, root)
+            if (not any(inside(normalized, scope(p, root)) for p in source['write_scopes'])
+                    or not any(inside(normalized, scope(p, root)) for p in target['write_scopes'])):
+                raise ValueError('Devir kapsami gorev disinda')
+            authorized.add((source['id'], target['id'], normalized))
+    # Cross-owner overlap requires a handoff covering the entire intersection.
     for a in tasks:
         for b in tasks:
             if a['owner'] == b['owner']:
                 continue
-            if any(overlap(scope(x, root), scope(y, root)) for x in a['write_scopes'] for y in b['write_scopes']):
-                raise ValueError('Iki gelistiriciye ortak yazma kapsami: ' + a['id'] + '/' + b['id'])
+            for x in a['write_scopes']:
+                for y in b['write_scopes']:
+                    sx, sy = scope(x, root), scope(y, root)
+                    if not overlap(sx, sy):
+                        continue
+                    intersection = sx if inside(sx, sy) else sy
+                    if not any(((s == a['id'] and t == b['id']) or (s == b['id'] and t == a['id']))
+                               and inside(intersection, p) for s, t, p in authorized):
+                        raise ValueError('Iki gelistiriciye ortak yazma kapsami: ' + a['id'] + '/' + b['id'])
     return index
 
 

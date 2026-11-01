@@ -110,6 +110,11 @@ func _run_tests() -> void:
 	_check(lab._player.global_position.distance_to(Vector3(0.0, 0.75, 5.0)) < 0.1, "19. Synchronized reset returns player to spawn")
 	_check(lab.combat.health == 100.0, "20. Synchronized reset restores player health")
 
+	# Standalone Node fixtures are not tree-owned; release them explicitly.
+	breaker.free()
+	scout.free()
+	lock.free()
+	carrier.free()
 	boss.queue_free()
 	lab.queue_free()
 	await process_frame

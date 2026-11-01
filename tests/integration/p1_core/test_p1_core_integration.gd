@@ -38,7 +38,7 @@ func _run_tests() -> void:
 	# 3. Roles verified
 	_check(is_instance_valid(lab.breaker_role), "Breaker role attached")
 	_check(is_instance_valid(lab.scout_role), "Scout role attached")
-	_check(lab.active_role_id == "breaker", "Starts with Breaker as active role")
+	_check(lab.active_role_id == "operator" and lab.roles.current_profile().role_id == &"operator", "Starts with integrated Operator profile")
 
 	# 4. Arena fixtures & New Modules verified
 	_check(is_instance_valid(lab.combat_range), "Combat range initialized")

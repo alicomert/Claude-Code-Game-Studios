@@ -37,6 +37,60 @@ class RoutingTests(unittest.TestCase):
             self.assertEqual(result['source_freshness'], 'unknown')
             self.assertEqual(result['coordination'], 'local-only')
 
+    def test_phase2_task_routes_and_phase1_dependency_is_preserved(self):
+        task = self.data['tasks'][0]
+        task.update(id='P2-A01', branch='feat/alicomert/p2-ui-concepts',
+                    write_scopes=['production/ui-concepts'], depends_on=['P1-O01'])
+        self.assertFalse(self.route(branch=task['branch'])['can_write'])
+        self.data['tasks'][1].update(status='done', evidence=['qa/evidence.md'])
+        self.assertTrue(self.route(branch=task['branch'],
+                                   dirty=['production/ui-concepts/index.html'])['can_write'])
+        self.assertFalse(self.route(branch=task['branch'], dirty=['project.godot'])['can_write'])
+
+    def test_phase2_shared_files_still_require_integration_owner_and_role(self):
+        task = self.data['tasks'][0]
+        task.update(id='P2-A01', write_scopes=['project.godot'])
+        with self.assertRaises(ValueError):
+            startup.validate_manifest(self.data)
+        task['id'] = 'P2-I01'
+        startup.validate_manifest(self.data)
+        task['owner'] = 'okanipk'
+        task['branch'] = 'feat/okanipk/p2-i01'
+        with self.assertRaises(ValueError):
+            startup.validate_manifest(self.data)
+
+    def test_unsupported_phase_ids_remain_rejected(self):
+        for tid in ('P0-A01', 'P3-A01', 'P2-X01', 'P2-A1', 'P2-A001'):
+            with self.subTest(tid=tid), self.assertRaises(ValueError):
+                data = fixture()
+                data['tasks'][0]['id'] = tid
+                startup.validate_manifest(data)
+
+    def test_explicit_integration_handoff_is_narrow_and_completed_only(self):
+        target, source = self.data['tasks']
+        target.update(id='P2-I01', branch='feat/alicomert/p2-integration',
+                      depends_on=['P1-O01'], write_scopes=['src/interaction'])
+        source.update(status='done', evidence=['qa/proof.md'])
+        handoff = dict(from_task='P1-O01', to_task='P2-I01',
+                       scopes=['src/interaction'], reason='Owner approved integration')
+        self.data['integration_handoffs'] = [handoff]
+        startup.validate_manifest(self.data)
+        for change in ('active_source', 'missing_dependency', 'narrow_scope', 'wrong_target', 'missing_reason'):
+            bad = copy.deepcopy(self.data)
+            if change == 'active_source':
+                bad['tasks'][1]['status'] = 'in_progress'
+            elif change == 'missing_dependency':
+                bad['tasks'][0]['depends_on'] = []
+            elif change == 'narrow_scope':
+                bad['integration_handoffs'][0]['scopes'] = ['src/interaction/one.gd']
+            elif change == 'wrong_target':
+                bad['tasks'][0]['id'] = 'P2-A01'
+                bad['integration_handoffs'][0]['to_task'] = 'P2-A01'
+            else:
+                bad['integration_handoffs'][0]['reason'] = ''
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                startup.validate_manifest(bad)
+
     def test_display_name_is_not_identity(self):
         self.assertFalse(self.route('Ali Comert')['can_write'])
 
